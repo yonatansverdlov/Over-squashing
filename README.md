@@ -20,7 +20,7 @@ To set up the project environment and install all necessary dependencies, follow
 
 2. Navigate into the project directory:
    ```bash
-   cd Over-squash/bottlneck
+   cd Over-squash/bottleneck
    ```
 
 3. Create a new Conda environment and activate it:
