@@ -1,0 +1,354 @@
+General:
+  use_residual: True
+  use_layer_norm: True
+  use_activation: False
+  loader_workers: 2
+  eval_every: 10
+  wd: 0.0
+  num_samples: 32000
+  lr: 0.001
+  dropout_final: .0
+  max_epochs: 150
+  dropout_hidden: .0
+  batchNorm_final: True
+  batchNorm_hidden: True
+  mlp_activation_hidden: relu
+  mlp_activation_final: relu
+  test_batch_size: 1024
+  val_batch_size: 1024
+  accum_grad: 1
+  repeat: 1
+  batch_size: 1
+  learnable_embedding: True
+  take_best: True
+Task_specific:
+  SW:
+    Ring:
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 150
+      mlp_layers: 2
+      mlp_activation_hidden: relu
+      mlp_activation_final: relu
+      self_loop_weight: .0
+      optim_type: Adam
+    CliqueRing:
+      batch_size: 512
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 150
+      lr_factor: .7
+      dim: 64
+      mlp_activation_hidden: leaky
+      mlp_activation_final: leaky
+      mlp_layers: 3
+      accum_grad: 2
+      self_loop_weight: .1
+      optim_type: Adam
+    CrossRing:
+      batch_size: 512 # 256
+      dim: 64
+      lr_factor: .7
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      mlp_layers: 3
+      accum_grad: 1
+      mlp_activation_hidden: leaky
+      mlp_activation_final: leaky
+      self_loop_weight: .1
+      optim_type: Adam
+    Tree:
+      train_fraction: 0.8
+      batch_size: 256
+      lr_factor: .8
+      self_loop_weight: 0.2
+      accum_grad: 4
+      mlp_layers: 0
+      max_epochs: 20000
+      dim: 64
+      mlp_activation_hidden: relu
+      mlp_activation_final: relu
+      lr: 0.001
+      optim_type: Adam
+      use_residual: True
+      use_layer_norm: True
+    Cora:
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 50
+      self_loop_weight: 0.1
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+    Actor:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 3
+      residual: True
+      layer_norm: True
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.005
+      max_epochs: 100
+      homog: False
+      dropout_final: 0.2
+      dropout_hidden: 0.2
+      self_loop_weight: 0.1
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+    Squir:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      use_residual: True
+      use_layer_norm: True
+      wd: 0.00001
+      lr: 0.001
+      max_epochs: 100
+      homog: False
+      repeat: 10
+      dropout_final: 0.1
+      dropout_hidden: 0.1
+      self_loop_weight: 0.2
+      optim_type: Adam
+    Texas:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      use_residual: True
+      use_layer_norm: True
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 50
+      homog: False
+      self_loop_weight: 0.2
+      optim_type: Adam
+    Corn:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 100
+      eval_every: 5
+      self_loop_weight: 0.1
+      optim_type: AdamW
+      take_best: False
+      # learnable_embedding: False
+    Wisc:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.005
+      max_epochs: 100
+      self_loop_weight: 0.5
+      optim_type: Adam
+      eval_every: 5
+      use_residual: True
+      use_layer_norm: True
+      learnable_embedding: True
+      # take_best: False
+    Cham:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      residual: True
+      layer_norm: True
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 100
+      homog: False
+      self_loop_weight: 0.1
+      optim_type: Adam
+    Cite:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      use_residual: True
+      use_layer_norm: False
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 50
+      homog: False
+      self_loop_weight: 0.1
+      optim_type: Adam
+      learnable_embedding: False
+    Pubm:
+      batch_size: 1
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 0
+      residual: True
+      layer_norm: True
+      wd: 0.00001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.005
+      max_epochs: 100
+      homog: False
+      self_loop_weight: 0.1
+      optim_type: Adam
+  GAT:
+    Tree:
+      num_samples: 32000
+      train_fraction: 0.8
+      batch_size: 1024
+      lr_factor: .5
+      max_epochs: 100
+      dim: 64
+      lr: 0.001
+      repeat: 100
+      eval_every: 1
+      residual: True
+      layer_norm: True
+    Bridge:
+      lr: 0.005
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      loop_weight: 0.0
+    Ring:
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      optim_type: Adam
+  GIN:
+    Tree:
+      num_samples: 32000
+      train_fraction: 0.8
+      batch_size: 1024
+      lr_factor: .5
+      max_epochs: 100
+      dim: 32
+      lr: 0.001
+      residual: False
+      layer_norm: False
+      repeat: 100
+      eval_every: 1
+    Cora:
+      batch_size: 1
+      dim: 128
+      lr_factor: .85
+      residual: True
+      layer_norm: True
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001 # 0.01
+    Ring:
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      optim_type: Adam
+  GCN:
+    Tree:
+      num_samples: 32000
+      train_fraction: 0.8
+      batch_size: 1024
+      lr_factor: .5
+      max_epochs: 100
+      dim: 32
+      lr: 0.001
+      residual: True
+      layer_norm: True
+      repeat: 100
+      eval_every: 1
+    Ring:
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      optim_type: Adam
+
+    Bridge:
+      lr: 0.005
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      loop_weight: 0.0
+  GGNN:
+    Tree:
+      num_samples: 32000
+      train_fraction: 0.8
+      batch_size: 1024
+      lr_factor: .5
+      max_epochs: 100
+      dim: 64
+      reduce_every: 1
+      lr: 0.001
+      residual: False
+      layer_norm: False
+      repeat: 100
+      eval_every: 1
+    Cora:
+      batch_size: 1
+      dim: 128
+      lr_factor: .85
+      num_heads: 3
+      residual: True
+      layer_norm: True
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+    Ring:
+      batch_size: 256
+      dim: 64
+      lr_factor: .5
+      num_samples: 6000
+      train_fraction: 5000
+      max_epochs: 100
+      optim_type: Adam
+  SAGE:
+      Ring:
+        batch_size: 256
+        dim: 64
+        lr_factor: .5
+        num_samples: 6000
+        train_fraction: 5000
+        max_epochs: 100
+        optim_type: Adam
