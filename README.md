@@ -5,7 +5,7 @@
 
 ## Description
 
-Over-squash is a tool for solving the problem of information bottlenecks in graph neural networks (GNNs) or implementing effective mechanisms to mitigate over-squashing issues. This project is built using Python and deep learning frameworks, including PyTorch and PyTorch Geometric. It aims to enhance the ability of GNNs to handle long-range dependencies without suffering from information loss or compression, thereby improving their performance in tasks requiring deep relational information.
+Over-squash is a tool for solving the problem of information bottlenecks in graph neural networks (GNNs) or implementing effective mechanisms to mitigate over-squashing issues. This project uses Python and deep learning frameworks, including PyTorch and PyTorch Geometric. It aims to enhance the ability of GNNs to handle long-range dependencies without suffering from information loss or compression, thereby improving their performance in tasks requiring deep relational information.
 
 ---
 
@@ -66,7 +66,7 @@ Next, choose the number of different seeds (between 1 and 10) indicated by `repe
    ```bash
    python train.py --dataset_name data_type --repeat repeat
    ```
-## LRGB
+## LRGB & MolHIV
 ## License
 
 This project is licensed under the MIT License.
