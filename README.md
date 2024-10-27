@@ -5,7 +5,7 @@
 
 ## Description
 
-`Over-squash` is a tool for solving [specific problem] or implementing [specific feature]. This project is built using Python and deep learning frameworks, including PyTorch and PyTorch Geometric. It aims to [describe the goal or purpose of your project].
+Over-squash is a tool for solving the problem of information bottlenecks in graph neural networks (GNNs) or implementing effective mechanisms to mitigate over-squashing issues. This project is built using Python and deep learning frameworks, including PyTorch and PyTorch Geometric. It aims to enhance the ability of GNNs to handle long-range dependencies without suffering from information loss or compression, thereby improving their performance in tasks requiring deep relational information.
 
 ---
 
@@ -44,46 +44,28 @@ To run the project, follow these steps:
    ```bash
    conda activate oversquash
    ```
-
-2. [Provide specific instructions for running the main script or application].
+   
 ## Over-squashing experiments
-Choose data, one of the four options: Ring, Tree, CrossRing, CliqueRing and problem radius, and run
+Choose data_type, one of the four options: Ring, Tree, CrossRing, CliqueRing. 
+Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 15.
+And run
    ```bash
-   python train.py --dataset_name data --radius radius.
+   python train.py --dataset_name data_type --radius radius.
    ```
 ---
-If all radius are needed, please run
+If all radios are needed, please run
    ```bash
    python train.py --dataset_name data --all True
    ```
+## Trunsductive Learning
 
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the project.
-2. Create your feature branch:
-   ```bash
-   git checkout -b my-new-feature
-   ```
-3. Commit your changes:
-   ```bash
-   git commit -m "Add new feature"
-   ```
-4. Push to the branch:
-   ```bash
-   git push origin my-new-feature
-   ```
-5. Open a pull request.
-
----
-
+## LRGB
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ---
 
 ## Contact
 
-For any questions or feedback, reach out to me at `your-email@example.com`.
+For any questions or feedback, reach out to me at `yonatans@campus.technion.ac.il`.
