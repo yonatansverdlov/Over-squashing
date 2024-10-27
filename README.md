@@ -15,12 +15,12 @@ To set up the project environment and install all necessary dependencies, follow
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/Over-squash.git
+   git clone https://github.com/yonatansverdlov/Over-squashing.git
    ```
 
 2. Navigate into the project directory:
    ```bash
-   cd Over-squash/bottleneck
+   cd bottleneck
    ```
 
 3. Create a new Conda environment and activate it:
