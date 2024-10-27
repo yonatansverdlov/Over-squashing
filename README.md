@@ -37,12 +37,7 @@ To set up the project environment and install all necessary dependencies, follow
 
 ## Usage
 
-To run the project, follow these steps:
-
-1. Activate the Conda environment:
-   ```bash
-   conda activate oversquash
-   ```
+We present three types of experiments: Over-squashing experiments, Transductive learning, and LRGB.
    
 ## Over-squashing experiments
 First run
