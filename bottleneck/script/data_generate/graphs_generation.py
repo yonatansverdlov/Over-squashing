@@ -73,7 +73,7 @@ class TreeDataset(RadiusProblemGraphs):
 
         for comb in self.get_combinations():
             edge_index = self.create_blank_tree(add_self_loops=True)
-            nodes = torch.tensor(self.get_nodes_features(comb), dtype=torch.long)
+            nodes = torch.tensor(self.get_nodes_features(comb), dtype=int)
             root_mask = torch.tensor([True] + [False] * (len(nodes) - 1))
             label = self.label(comb)
             data_list.append(Data(x=nodes, edge_index=edge_index, train_mask=root_mask,val_mask = root_mask,
@@ -193,15 +193,15 @@ class RingDataset(TreeDataset):
         edge_index.append([nodes - 1, 0])
 
         # Convert edge list to a torch tensor
-        edge_index = np.array(edge_index, dtype=np.long).T
-        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        edge_index = np.array(edge_index, dtype=int).T
+        edge_index = torch.tensor(edge_index, dtype=int)
 
         # Create a mask to identify the target node in the graph. Only the source node (index 0) is marked true.
         mask = torch.zeros(nodes, dtype=torch.bool)
         mask[0] = 1
 
         # Determine the graph's label based on the target label. This is a singular value indicating the index of the target label.
-        y = torch.tensor([np.argmax(target_label)], dtype=torch.long)
+        y = torch.tensor([np.argmax(target_label)], dtype=int)
 
         # Return the graph with nodes, edges, mask and the label
         return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label,train_mask = mask, test_mask = mask)
@@ -285,8 +285,8 @@ class CliqueRing(TreeDataset):
         edge_index.append([nodes // 2, nodes // 2 - 1])
 
         # Convert the edge index list to a torch tensor
-        edge_index = np.array(edge_index, dtype=np.compat.long).T
-        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        edge_index = np.array(edge_index, dtype=int).T
+        edge_index = torch.tensor(edge_index, dtype=int)
 
         # Create a mask to indicate the target node (in this case, the first node)
         mask = torch.zeros(nodes, dtype=torch.bool)
