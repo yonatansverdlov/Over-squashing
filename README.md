@@ -20,7 +20,7 @@ To set up the project environment and install all necessary dependencies, follow
 
 2. Navigate into the project directory:
    ```bash
-   cd bottleneck
+   cd Over-squashing
    ```
 
 3. Create a new Conda environment and activate it:
@@ -33,7 +33,6 @@ To set up the project environment and install all necessary dependencies, follow
    ```bash
    pip install -r requirements.txt
    ```
-
 ---
 
 ## Usage
@@ -46,15 +45,21 @@ To run the project, follow these steps:
    ```
    
 ## Over-squashing experiments
+First run
+   ```bash
+   cd bottleneck/script
+
+   ```
 Choose data_type, one of the four options: Ring, Tree, CrossRing, CliqueRing. 
 Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 15.
-And run
-   ```bash
-   python train.py --dataset_name data_type --radius radius.
-   ```
 If all radios are needed, please run
    ```bash
+   
    python train.py --dataset_name data --all True
+   ```
+Otherwise, run
+   ```bash
+   python train.py --dataset_name data_type --radius radius.
    ```
 ---
 ## Trunsductive Learning
