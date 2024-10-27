@@ -62,7 +62,7 @@ def get_layer(args: EasyDict, in_dim: int, out_dim: int):
 
 
 
-def get_args(depth: int, gnn_type: GNN_TYPE, num_layers: int, task_type: str):
+def get_args(depth: int, gnn_type: GNN_TYPE, task_type: str):
     """
     :param depth:
     :param gnn_type:
@@ -80,7 +80,6 @@ def get_args(depth: int, gnn_type: GNN_TYPE, num_layers: int, task_type: str):
         setattr(clean_args, key, item)
     clean_args.depth = depth
     clean_args.gnn_type = gnn_type
-    clean_args.num_layers = num_layers
     clean_args.task_type = task_type
     if gnn_type is GNN_TYPE.SW:
         clean_args.layer_type = SW_conv

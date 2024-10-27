@@ -11,6 +11,22 @@ from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
 
+class StopAtValAccCallback(pl.Callback):
+    def __init__(self, target_acc=1.0):
+        super().__init__()
+        self.target_acc = target_acc
+
+    def on_validation_epoch_end(self, trainer, pl_module):
+        # Access the logged metrics
+        val_acc = trainer.callback_metrics.get('val_acc')
+        # Check if the validation accuracy has reached or exceeded the target
+        if val_acc is not None and val_acc >= self.target_acc:
+            trainer.should_stop = True
+            print(f"Stopping training as `val_acc` reached {val_acc:.2f}")
+        else:
+            print(f"The current val accuracy is {val_acc}")
+
+
 class LightningModel(pl.LightningModule):
     def __init__(self, args: EasyDict,task_id):
         """
@@ -21,7 +37,7 @@ class LightningModel(pl.LightningModule):
         super().__init__()
         self.outputs = []
         self.gnn_type = args.gnn_type
-        self.num_layers = args.num_layers
+        self.num_layers = args.depth
         self.lr = args.lr
         self.dim = args.dim
         self.lr_factor = args.lr_factor
@@ -41,11 +57,6 @@ class LightningModel(pl.LightningModule):
     
     def compute_node_embedding(self,X):
         return self.model.compute_node_embedding(X)
-
-    def on_validation_epoch_end(self) -> None:
-        acc = sum(self.outputs) / len(self.outputs)
-        print(f"Current accuracy is {acc}")
-        self.outputs = []
 
     def training_step(self, batch: Data, batch_idx: int) -> torch.float:
         """

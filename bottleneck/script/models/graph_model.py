@@ -12,7 +12,7 @@ class GraphModel(torch.nn.Module):
         self.use_activation = args.use_activation
         self.use_residual = args.use_residual
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.num_layers = args.num_layers
+        self.num_layers = args.depth
         self.in_dim = args.in_dim
         self.out_dim = args.out_dim
         self.h_dim = args.dim

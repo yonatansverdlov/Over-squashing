@@ -168,6 +168,7 @@ class SW_conv(MessagePassing):
         dropout_hidden = args.dropout_hidden
         learnable_embedding = args.learnable_embedding
         self.self_loop_weight = args.self_loop_weight
+        self.embed_factor = 2
 
         assert edge_weighting in {'unit', 'gcn'}, 'invalid value passed in argument <edge_weighting>'
         assert vertex_degree_encoding_function in {'identity', 'sqrt', 'log'}, 'invalid value passed in argument <vertex_degree_encoding_function>'
@@ -178,7 +179,7 @@ class SW_conv(MessagePassing):
         if (mlp_layers == 0) and (concat_self == False):
             embed_dim = out_channels
         elif embed_dim == None:
-            embed_dim = 2 * max(in_channels, out_channels)
+            embed_dim = self.embed_factor * max(in_channels, out_channels)
 
         # If we're using an MLP and bias==True, then the MLP will add a bias anyway.
         embedding_bias = (bias and mlp_layers == 0)

@@ -1,14 +1,15 @@
 General:
-  use_residual: True
-  use_layer_norm: True
+  use_residual: False
+  use_layer_norm: False
   use_activation: False
   loader_workers: 2
-  eval_every: 10
+  eval_every: 5
   wd: 0.0
+  self_loop_weight: 0.0
   num_samples: 32000
   lr: 0.001
   dropout_final: .0
-  max_epochs: 150
+  max_epochs: 100
   dropout_hidden: .0
   batchNorm_final: True
   batchNorm_hidden: True
@@ -21,51 +22,42 @@ General:
   batch_size: 1
   learnable_embedding: True
   take_best: True
+  optim_type: Adam
 Task_specific:
   SW:
     Ring:
-      batch_size: 256
+      batch_size: 1024
       dim: 64
-      lr_factor: .5
+      lr_factor: .7
       num_samples: 6000
-      train_fraction: 5000
       max_epochs: 150
-      mlp_layers: 2
-      mlp_activation_hidden: relu
-      mlp_activation_final: relu
-      self_loop_weight: .0
-      optim_type: Adam
+      train_fraction: 5000
+      mlp_layers: 3
+      mlp_activation_hidden: leaky
+      mlp_activation_final: leaky
     CliqueRing:
-      batch_size: 512
+      batch_size: 1024
+      dim: 64
+      lr_factor: .7
       num_samples: 6000
       train_fraction: 5000
-      max_epochs: 150
-      lr_factor: .7
-      dim: 64
+      mlp_layers: 3
       mlp_activation_hidden: leaky
       mlp_activation_final: leaky
-      mlp_layers: 3
-      accum_grad: 2
-      self_loop_weight: .1
-      optim_type: Adam
     CrossRing:
-      batch_size: 512 # 256
+      batch_size: 1024
       dim: 64
       lr_factor: .7
       num_samples: 6000
       train_fraction: 5000
-      max_epochs: 100
       mlp_layers: 3
-      accum_grad: 1
       mlp_activation_hidden: leaky
       mlp_activation_final: leaky
-      self_loop_weight: .1
-      optim_type: Adam
     Tree:
       train_fraction: 0.8
       batch_size: 256
       lr_factor: .8
-      self_loop_weight: 0.2
+      self_loop_weight: 0.0
       accum_grad: 4
       mlp_layers: 0
       max_epochs: 20000
