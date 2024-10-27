@@ -8,7 +8,7 @@ from torch_geometric.nn import GCNConv, GatedGraphConv, GINConv, GATConv, SAGECo
 import torch_geometric
 from models.sw_layer import SW_conv
 import shutil, os
-from datasets.graphs_generation import TreeDataset, CliqueRing, RingDataset
+from data_generate.graphs_generation import TreeDataset, CliqueRing, RingDataset
 
 class GNN_TYPE(Enum):
     """
