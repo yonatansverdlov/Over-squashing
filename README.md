@@ -52,11 +52,11 @@ And run
    ```bash
    python train.py --dataset_name data_type --radius radius.
    ```
----
 If all radios are needed, please run
    ```bash
    python train.py --dataset_name data --all True
    ```
+---
 ## Trunsductive Learning
 
 ## LRGB
