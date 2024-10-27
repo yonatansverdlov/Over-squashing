@@ -47,6 +47,7 @@ First run
    ```
 Choose data_type, one of the four options: Ring, Tree, CrossRing, CliqueRing. 
 Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 15.
+
 If all radios are needed, please run
    ```bash
    
