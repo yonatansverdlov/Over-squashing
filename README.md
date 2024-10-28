@@ -69,6 +69,7 @@ Next, choose the number of different seeds (between 1 and 10) indicated by `repe
 ## LRGB & MolHIV
 1. Create a new Conda environment and activate it:
    ```bash
+   cd Over-squashing
    conda create --name lrgb -c conda-forge python=3.11
    conda activate lrgb
    ```
