@@ -67,6 +67,15 @@ Next, choose the number of different seeds (between 1 and 10) indicated by `repe
    python train.py --dataset_name data_type --repeat repeat
    ```
 ## LRGB & MolHIV
+1. Create a new Conda environment and activate it:
+   ```bash
+   conda create --name lrgb -c conda-forge python=3.11
+   conda activate lrgb
+   ```
+2. Install the necessary dependencies from the `lrgb_requirements.txt` file:
+   ```bash
+   pip install -r lrgb_requirements.txt
+   ```
 ## License
 
 This project is licensed under the MIT License.
