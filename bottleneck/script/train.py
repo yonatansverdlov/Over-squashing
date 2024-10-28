@@ -15,12 +15,12 @@ random.seed(seed)
 def train_graphs(args:dict, task_id:int):
     model_dir, path_to_project = create_model_dir(args, task_specific)
     stop_at_val_acc_callback = StopAtValAccCallback(target_acc=1.0)
-
     callbacks = [pl.callbacks.ModelCheckpoint(dirpath=model_dir,
                                               filename='{epoch}-f{val_acc:.5f}',
                                               save_top_k=10,
                                               monitor=f'val_acc',
-                                              save_last=True, mode='max'),stop_at_val_acc_callback]
+                                              save_last=True, mode='max'),
+                                              stop_at_val_acc_callback]
 
     trainer = pl.Trainer(max_epochs=args.max_epochs, accelerator='gpu' if torch.cuda.is_available() else 'cpu', enable_progress_bar=True,
                          check_val_every_n_epoch=args.eval_every, callbacks=callbacks,
@@ -76,7 +76,7 @@ args = parser.parse_args()
 # Access the arguments
 task = args.dataset_name
 depth = args.radius
-repeat = args.repeat
+repeats = args.repeat
 alls = args.all
 tests = dict()
 if alls:
@@ -88,9 +88,13 @@ else:
     first, end = depth, depth + 1
 
 for depth in range(first,end):
+    test_accs = 0.0
     args, task_specific = get_args(depth=depth, gnn_type=GNN_TYPE.SW, task_type=task)
-    energy, test_acc = train_graphs(args = args,task_id=0)
-    tests[depth] = test_acc
+    for repeat in range(repeats):
+        energy, test_acc = train_graphs(args = args,task_id=repeat)
+        test_accs+=test_acc
+    tests[depth] = test_accs / repeats
 for depth in range(first, end):
+    print(args)
     print(f"On radius {depth} the accuracy is {tests[depth]} on the {str(task)}")
 

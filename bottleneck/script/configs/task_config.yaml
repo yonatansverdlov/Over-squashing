@@ -9,8 +9,8 @@ General:
   num_samples: 32000
   lr: 0.001
   dropout_final: .0
-  max_epochs: 100
   dropout_hidden: .0
+  max_epochs: 100
   batchNorm_final: True
   batchNorm_hidden: True
   mlp_activation_hidden: relu
@@ -55,53 +55,50 @@ Task_specific:
       mlp_activation_final: leaky
     Tree:
       train_fraction: 0.8
-      batch_size: 256
-      lr_factor: .8
+      batch_size: 1024
+      lr_factor: .7
       self_loop_weight: 0.0
-      accum_grad: 4
+      accum_grad: 1
       mlp_layers: 0
-      max_epochs: 20000
+      max_epochs: 1000
       dim: 64
       mlp_activation_hidden: relu
       mlp_activation_final: relu
       lr: 0.001
       optim_type: Adam
       use_residual: True
-      use_layer_norm: True
+      use_layer_norm: False
     Cora:
+      # Done.
       dim: 128
-      lr_factor: .7
+      lr_factor: .5
       mlp_layers: 0
       wd: 0.00001
       dropout_final: .1
       dropout_hidden: .1
-      lr: 0.001
-      max_epochs: 50
+      lr: 0.001 
+      max_epochs: 80
       self_loop_weight: 0.1
       optim_type: AdamW
       use_residual: True
       use_layer_norm: True
       eval_every: 5
     Actor:
+      # Done.
       batch_size: 1
       dim: 128
       lr_factor: .7
       mlp_layers: 3
-      residual: True
-      layer_norm: True
       wd: 0.00001
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.005
-      max_epochs: 100
-      homog: False
-      dropout_final: 0.2
-      dropout_hidden: 0.2
+      max_epochs: 50
       self_loop_weight: 0.1
       optim_type: AdamW
       use_residual: True
       use_layer_norm: True
-    Squir:
+    Squi:
       batch_size: 1
       dim: 128
       lr_factor: .7
@@ -110,13 +107,11 @@ Task_specific:
       use_layer_norm: True
       wd: 0.00001
       lr: 0.001
-      max_epochs: 100
-      homog: False
-      repeat: 10
+      max_epochs: 80
       dropout_final: 0.1
       dropout_hidden: 0.1
       self_loop_weight: 0.2
-      optim_type: Adam
+      optim_type: AdamW
     Texas:
       batch_size: 1
       dim: 128
@@ -128,25 +123,24 @@ Task_specific:
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
-      max_epochs: 50
-      homog: False
-      self_loop_weight: 0.2
-      optim_type: Adam
+      max_epochs: 80
+      self_loop_weight: 0.1
+      optim_type: AdamW
     Corn:
       batch_size: 1
       dim: 128
       lr_factor: .7
       mlp_layers: 0
-      wd: 0.00001
+      wd: 0.0000
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
-      max_epochs: 100
+      max_epochs: 80
       eval_every: 5
       self_loop_weight: 0.1
-      optim_type: AdamW
-      take_best: False
-      # learnable_embedding: False
+      optim_type: Adam
+      use_residual: True
+      use_layer_norm: True
     Wisc:
       batch_size: 1
       dim: 128
@@ -155,15 +149,13 @@ Task_specific:
       wd: 0.00001
       dropout_final: .1
       dropout_hidden: .1
-      lr: 0.005
-      max_epochs: 100
-      self_loop_weight: 0.5
+      lr: 0.001
+      max_epochs: 70
+      self_loop_weight: 0.1
       optim_type: Adam
       eval_every: 5
       use_residual: True
       use_layer_norm: True
-      learnable_embedding: True
-      # take_best: False
     Cham:
       batch_size: 1
       dim: 128
@@ -175,14 +167,13 @@ Task_specific:
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
-      max_epochs: 100
-      homog: False
+      max_epochs: 80
       self_loop_weight: 0.1
-      optim_type: Adam
+      optim_type: AdamW
     Cite:
       batch_size: 1
       dim: 128
-      lr_factor: .7
+      lr_factor: .5
       mlp_layers: 0
       use_residual: True
       use_layer_norm: False
@@ -191,10 +182,9 @@ Task_specific:
       dropout_hidden: .1
       lr: 0.001
       max_epochs: 50
-      homog: False
       self_loop_weight: 0.1
       optim_type: Adam
-      learnable_embedding: False
+      learnable_embedding: True
     Pubm:
       batch_size: 1
       dim: 128
@@ -206,8 +196,7 @@ Task_specific:
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.005
-      max_epochs: 100
-      homog: False
+      max_epochs: 80
       self_loop_weight: 0.1
       optim_type: Adam
   GAT:
