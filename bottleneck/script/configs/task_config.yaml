@@ -21,7 +21,6 @@ General:
   repeat: 1
   batch_size: 1
   learnable_embedding: True
-  take_best: True
   optim_type: Adam
 Task_specific:
   SW:
@@ -65,7 +64,6 @@ Task_specific:
       mlp_activation_hidden: relu
       mlp_activation_final: relu
       lr: 0.001
-      optim_type: Adam
       use_residual: True
       use_layer_norm: False
     Cora:
