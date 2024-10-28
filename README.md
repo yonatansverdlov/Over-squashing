@@ -49,7 +49,7 @@ Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 1
 
 If all radios are needed, please run
    ```bash
-   python train.py --dataset_name data --all True
+   python train.py --dataset_name data_type --all True
    ```
 Otherwise, run
    ```bash
