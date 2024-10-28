@@ -9,7 +9,7 @@ Over-squash is a tool for solving the problem of information bottlenecks in grap
 
 ---
 
-## Installation
+## Installation For Over-squashing and transductive learning
 
 To set up the project environment and install all necessary dependencies, follow these steps:
 
@@ -70,7 +70,7 @@ Next, choose the number of different seeds (between 1 and 10) indicated by `repe
 1. Create a new Conda environment and activate it:
    ```bash
    cd Over-squashing
-   conda create --name lrgb -c conda-forge python=3.11
+   conda create --name lrgb -c conda-forge python=3.10
    conda activate lrgb
    ```
 2. Install the necessary dependencies from the `lrgb_requirements.txt` file:
