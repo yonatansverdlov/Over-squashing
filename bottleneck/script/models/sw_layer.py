@@ -51,7 +51,7 @@ def return_act(act: str):
     if act == 'relu':
         return torch.nn.ReLU()
     if act == 'leaky':
-        return torch.nn.LeakyReLU(0.2)
+        return torch.nn.LeakyReLU(0.1)
     if act == 'tanh':
         return torch.nn.Tanh()
     if act == 'silu':
@@ -155,7 +155,6 @@ class SW_conv(MessagePassing):
                  concat_self = True,
                  bias=True,
                  mlp_hidden_dim=None, 
-                 mlp_init = None,
                  batchNorm_final = True, batchNorm_hidden = True,
                  edge_weighting = 'unit',
                  device=None, dtype=torch.float32):
@@ -169,6 +168,7 @@ class SW_conv(MessagePassing):
         learnable_embedding = args.learnable_embedding
         self.self_loop_weight = args.self_loop_weight
         self.embed_factor = 2
+        mlp_init = args.mlp_init
 
         assert edge_weighting in {'unit', 'gcn'}, 'invalid value passed in argument <edge_weighting>'
         assert vertex_degree_encoding_function in {'identity', 'sqrt', 'log'}, 'invalid value passed in argument <vertex_degree_encoding_function>'

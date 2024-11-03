@@ -17,7 +17,7 @@ class GraphModel(torch.nn.Module):
         self.out_dim = args.out_dim
         self.h_dim = args.dim
         self.task_type = args.task_type
-        self.layer0_keys = nn.Embedding(num_embeddings=self.in_dim + 1, embedding_dim=self.h_dim, dtype=dtype,)
+        self.layer0_keys = nn.Embedding(num_embeddings=self.in_dim + 1, embedding_dim=self.h_dim, dtype=dtype)
         self.layer0_values = nn.Embedding(num_embeddings=self.in_dim + 1, embedding_dim=self.h_dim, dtype=dtype)
         self.layers = nn.ModuleList()
         self.layer_norms = nn.ModuleList()
@@ -27,23 +27,23 @@ class GraphModel(torch.nn.Module):
         self.is_tree = str(self.task_type) == 'Tree'
         if self.global_task:
             self.layer0_keys = nn.Linear(self.in_dim,self.h_dim)
-        for i in range(self.num_layers):
+        for _ in range(self.num_layers):
                 self.layers.append(get_layer(
                     in_dim=self.h_dim,
                     out_dim =self.h_dim,
                     args=args))
         if self.use_layer_norm:
-            for i in range(self.num_layers):
+            for _ in range(self.num_layers):
                 self.layer_norms.append(nn.LayerNorm(self.h_dim))
 
-        self.out_layer =  nn.Linear(in_features=self.h_dim, out_features=self.out_dim, bias=False)
+        self.out_layer =  nn.Linear(in_features=self.h_dim, out_features=self.out_dim)
         self.init_model()
 
     def init_model(self):
         torch.nn.init.xavier_uniform_(self.out_layer.weight)
 
     def forward(self, data):
-        x, edge_index, batch, roots = data.x, data.edge_index, data.batch, data.root_mask
+        x, edge_index,  roots = data.x, data.edge_index, data.root_mask
         if self.is_tree:
             x_key, x_val = x[:, 0], x[:, 1]
             x_key_embed = self.layer0_keys(x_key)
@@ -56,8 +56,6 @@ class GraphModel(torch.nn.Module):
             layer = self.layers[i]
             new_x = x
             new_x = layer(new_x, edge_index)
-            if self.use_activation:
-                new_x = F.relu(new_x)
             if self.use_residual:
                 x = x + new_x
             else:

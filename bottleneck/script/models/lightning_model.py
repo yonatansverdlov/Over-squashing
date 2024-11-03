@@ -22,9 +22,9 @@ class StopAtValAccCallback(pl.Callback):
         # Check if the validation accuracy has reached or exceeded the target
         if val_acc is not None and val_acc >= self.target_acc:
             trainer.should_stop = True
-            print(f"Stopping training as `val_acc` reached {val_acc:.2f}")
+            print(f" Stopping training as `val_acc` reached {val_acc:.2f}")
         else:
-            print(f"The current val accuracy is {val_acc}")
+            print(f" The current val accuracy is {val_acc}")
 
 
 class LightningModel(pl.LightningModule):
@@ -35,7 +35,6 @@ class LightningModel(pl.LightningModule):
             args: The config.
         """
         super().__init__()
-        self.outputs = []
         self.gnn_type = args.gnn_type
         self.num_layers = args.depth
         self.lr = args.lr
@@ -44,13 +43,12 @@ class LightningModel(pl.LightningModule):
         self.task_type = args.task_type
         self.in_dim = args.in_dim
         self.out_dim = args.out_dim
+        self.single_graph = ['Cora','Actor','Corn','Texas','Wisc','Squir','Cham','Cite','Pubm']
         self.optim_type = args.optim_type
-        self.model = GraphModel(args=args)
-        self.single_graph = args.single_graph
         self.wd = args.wd
         self.task_id = task_id
         self.is_real = str(self.task_type) in self.single_graph
-
+        self.model = GraphModel(args=args)
 
     def forward(self, X):
         return self.model(X)
@@ -95,7 +93,6 @@ class LightningModel(pl.LightningModule):
             result = self.model(batch)
             loss = torch.nn.CrossEntropyLoss()(result, label)
             acc = (torch.argmax(result, -1) == label).float().mean()
-        self.outputs += list((torch.argmax(result, -1) == label).float())
         self.log("val_loss", loss, batch_size=label.size(0))
         self.log("val_acc", acc, batch_size=label.size(0))
         return loss
@@ -117,7 +114,6 @@ class LightningModel(pl.LightningModule):
             result = self.model(batch)
             loss = torch.nn.CrossEntropyLoss()(result, label)
             acc = (torch.argmax(result, -1) == label).float().mean()
-        self.outputs += list((torch.argmax(result, -1) == label).float())
         self.log("test_loss", loss, batch_size=label.size(0))
         self.log('test_acc', acc, batch_size=label.size(0))
         return loss

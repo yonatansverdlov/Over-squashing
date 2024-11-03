@@ -34,12 +34,11 @@ def train_graphs(args:dict, task_id:int):
     test = True
     compute_direchlet = False
     energy = 0.0
-
     train_loader = DataLoader(X_train, batch_size=args.batch_size, shuffle=True,
                               pin_memory=True, num_workers=args.loader_workers)
     val_loader = DataLoader(X_val, batch_size=args.val_batch_size, shuffle=False,
                             pin_memory=True, num_workers=args.loader_workers)
-    test_loader = DataLoader(X_test, batch_size=args.test_batch_size, shuffle=False,
+    test_loader = DataLoader(X_test, batch_size=args.val_batch_size, shuffle=False,
                              pin_memory=True, num_workers=args.loader_workers)
 
     if training:
@@ -62,10 +61,10 @@ def train_graphs(args:dict, task_id:int):
 parser = argparse.ArgumentParser(description="Process dataset with a specified radius.")
 
 # Add dataset_name as a string argument (positional)
-parser.add_argument('--dataset_name', type=str, help='Name of the dataset',default = 'Cora')
+parser.add_argument('--dataset_name', type=str, help='Name of the dataset',default = 'Ring')
 
 # Add radius as an integer argument (positional)
-parser.add_argument('--radius', type=int, help='Radius value',default=2)
+parser.add_argument('--radius', type=int, help='Radius value',default=20)
 
 parser.add_argument('--repeat', type=int, help='Number of repeats',default=1)
 

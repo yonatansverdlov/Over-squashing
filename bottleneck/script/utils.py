@@ -1,5 +1,5 @@
 import pathlib
-from enum import Enum, auto
+from enum import Enum
 import torch
 import yaml
 from easydict import EasyDict
@@ -78,9 +78,27 @@ def get_args(depth: int, gnn_type: GNN_TYPE, task_type: str):
         setattr(clean_args, key, item)
     for key, item in type_config['Task_specific'][str(gnn_type)][task_type].items():
         setattr(clean_args, key, item)
+
     clean_args.depth = depth
     clean_args.gnn_type = gnn_type
     clean_args.task_type = task_type
+    if task_type == 'Tree':
+        if depth in [2,3,4,5,6]:
+            batch_size = 1024
+            accum_grad = 1
+            val_batch_size = 2048
+        elif depth  == 7:
+            batch_size = 512
+            accum_grad = 2
+            val_batch_size = 2048
+        elif depth  == 8:
+            batch_size = 256
+            accum_grad = 4
+            val_batch_size = 1024
+        clean_args.batch_size = batch_size
+        clean_args.accum_grad = accum_grad
+        clean_args.val_batch_size = val_batch_size
+    
     if gnn_type is GNN_TYPE.SW:
         clean_args.layer_type = SW_conv
     elif gnn_type is GNN_TYPE.GGNN:
@@ -156,47 +174,47 @@ def return_datasets(args):
         X_train, X_test, X_val = CliqueRing(args = args).generate_data(
             args.train_fraction)
     if task == 'Actor':
-        sets = torch_geometric.datasets.Actor('../data')
+        sets = torch_geometric.datasets.Actor('../data/raw')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 932
         args.out_dim = 5
     if task == 'Squir':
-        sets = torch_geometric.datasets.WikipediaNetwork('../data',name='Squirrel')
+        sets = torch_geometric.datasets.WikipediaNetwork('../data/raw',name='Squirrel')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 2089
         args.out_dim = 5
     if task == 'Cham':
-        sets = torch_geometric.datasets.WikipediaNetwork('../data',name='chameleon')
+        sets = torch_geometric.datasets.WikipediaNetwork('../data/raw',name='chameleon')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 2325
         args.out_dim = 5 
     if task == 'Texas':
-        sets = torch_geometric.datasets.WebKB('../data',name='Texas')
+        sets = torch_geometric.datasets.WebKB('../data/raw',name='Texas')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 1703
         args.out_dim = 5
     if task == 'Corn':
-        sets = torch_geometric.datasets.WebKB('../data',name='Cornell')
+        sets = torch_geometric.datasets.WebKB('../data/raw',name='Cornell')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 1703
         args.out_dim = 5
     if task == 'Wisc':
-        sets = torch_geometric.datasets.WebKB('../data',name='Wisconsin')
+        sets = torch_geometric.datasets.WebKB('../data/raw',name='Wisconsin')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 1703
         args.out_dim = 5
     if task == 'Cora':
-        sets = torch_geometric.datasets.Planetoid('../data',split = 'geom-gcn',name='Cora')
+        sets = torch_geometric.datasets.Planetoid('../data/raw',split = 'geom-gcn',name='Cora')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 1433
         args.out_dim = 7
     if task == 'Cite':
-        sets = torch_geometric.datasets.Planetoid('../data',split = 'geom-gcn',name='CiteSeer')
+        sets = torch_geometric.datasets.Planetoid('../data/raw',split = 'geom-gcn',name='CiteSeer')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 3703 
         args.out_dim = 6
     if task == 'Pubm':
-        sets = torch_geometric.datasets.Planetoid('../data',split = 'geom-gcn',name='PubMed')
+        sets = torch_geometric.datasets.Planetoid('../data/raw',split = 'geom-gcn',name='PubMed')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 500 
         args.out_dim = 3

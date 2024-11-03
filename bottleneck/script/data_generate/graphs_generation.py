@@ -81,7 +81,7 @@ class TreeDataset(RadiusProblemGraphs):
 
         self.args.in_dim, self.args.out_dim = self.get_dims()
 
-        X_train, X_test = train_test_split(
+        X_train, _ = train_test_split(
             data_list, train_size=train_fraction, shuffle=True, stratify=[data.y for data in data_list])
 
         return X_train * self.repeat, X_train, X_train
@@ -164,7 +164,6 @@ class RingDataset(TreeDataset):
         x = np.ones(nodes) 
 
         # Set feature of the source node to 0 and the opposite node to the target label
-        x[0] = self.classes + 1
         x[opposite_node] = target_label
 
         # Convert the feature matrix to a torch tensor for compatibility with Torch geometric
@@ -201,8 +200,6 @@ class RingDataset(TreeDataset):
         mask[0] = 1
 
         # Determine the graph's label based on the target label. This is a singular value indicating the index of the target label.
-        y = torch.tensor([np.argmax(target_label)], dtype=int)
-
         # Return the graph with nodes, edges, mask and the label
         return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label,train_mask = mask, test_mask = mask)
 
@@ -256,14 +253,10 @@ class CliqueRing(TreeDataset):
         if nodes <= 1: raise ValueError("Minimum of two nodes required")
         # Initialize node features. The first node gets 0s, while the last gets the target label
         x = np.ones(nodes) 
-        #
-        x[0] = 0
         x[nodes - 1] = target_label
 
         # Convert the feature matrix to a torch tensor for compatibility with Torch geometric
         x = torch.tensor(x, dtype=torch.int)
-        #
-
         edge_index = []
 
         # Construct a clique for the first half of the nodes,
@@ -295,7 +288,7 @@ class CliqueRing(TreeDataset):
         # Convert the one-hot encoded target label to its corresponding class index
 
         return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,val_mask = mask,
-        train_mask = mask, test_mask = mask)
+                    train_mask = mask, test_mask = mask)
 
     def generate_data(self, split):
         """

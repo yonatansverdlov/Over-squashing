@@ -15,13 +15,13 @@ General:
   batchNorm_hidden: True
   mlp_activation_hidden: relu
   mlp_activation_final: relu
-  test_batch_size: 1024
   val_batch_size: 1024
   accum_grad: 1
   repeat: 1
   batch_size: 1
   learnable_embedding: True
   optim_type: Adam
+  mlp_init: ~
 Task_specific:
   SW:
     Ring:
@@ -29,7 +29,6 @@ Task_specific:
       dim: 64
       lr_factor: .7
       num_samples: 6000
-      max_epochs: 150
       train_fraction: 5000
       mlp_layers: 3
       mlp_activation_hidden: leaky
@@ -54,10 +53,8 @@ Task_specific:
       mlp_activation_final: leaky
     Tree:
       train_fraction: 0.8
-      batch_size: 1024
-      lr_factor: .7
+      lr_factor: 0.9
       self_loop_weight: 0.0
-      accum_grad: 1
       mlp_layers: 0
       max_epochs: 1000
       dim: 64
@@ -65,9 +62,8 @@ Task_specific:
       mlp_activation_final: relu
       lr: 0.001
       use_residual: True
-      use_layer_norm: False
+      use_layer_norm: True
     Cora:
-      # Done.
       dim: 128
       lr_factor: .5
       mlp_layers: 0
@@ -82,7 +78,6 @@ Task_specific:
       use_layer_norm: True
       eval_every: 5
     Actor:
-      # Done.
       batch_size: 1
       dim: 128
       lr_factor: .7
@@ -182,7 +177,6 @@ Task_specific:
       max_epochs: 50
       self_loop_weight: 0.1
       optim_type: Adam
-      learnable_embedding: True
     Pubm:
       batch_size: 1
       dim: 128
