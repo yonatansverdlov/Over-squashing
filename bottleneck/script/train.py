@@ -82,7 +82,7 @@ if alls:
     if task in ['Ring','CliqueRing','CrossRing']:
         first, end = 2, 16
     else:
-        first, end = 2, 9
+        first, end = 2, 4
 else:
     first, end = depth, depth + 1
 
@@ -94,6 +94,5 @@ for depth in range(first,end):
         test_accs+=test_acc
     tests[depth] = test_accs / repeats
 for depth in range(first, end):
-    print(args)
     print(f"On radius {depth} the accuracy is {tests[depth]} on the {str(task)}")
 
