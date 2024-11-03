@@ -82,7 +82,7 @@ if alls:
     if task in ['Ring','CliqueRing','CrossRing']:
         first, end = 2, 16
     else:
-        first, end = 2, 4
+        first, end = 2, 9
 else:
     first, end = depth, depth + 1
 
