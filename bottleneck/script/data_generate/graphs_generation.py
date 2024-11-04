@@ -137,7 +137,7 @@ class TreeDataset(RadiusProblemGraphs):
         return in_dim, out_dim
 
 
-class RingDataset(TreeDataset):
+class RingDataset(RadiusProblemGraphs):
     def __init__(self, args, add_crosses=False, classes=5):
         super(RingDataset, self).__init__(args=args)
         self.add_crosses = add_crosses
@@ -234,7 +234,7 @@ class RingDataset(TreeDataset):
         return self.classes + 1, 5
 
 
-class CliqueRing(TreeDataset):
+class CliqueRing(RadiusProblemGraphs):
     def __init__(self, args, classes=5):
         super(CliqueRing, self).__init__(args=args)
         self.classes = classes
