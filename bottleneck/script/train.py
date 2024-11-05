@@ -3,6 +3,7 @@ import torch
 from torch_geometric.loader.dataloader import DataLoader
 
 from models.lightning_model import LightningModel, StopAtValAccCallback
+from models.graph_model import GraphModel
 from utils import GNN_TYPE, get_args, create_model_dir, compute_energy, return_datasets
 import random
 import numpy as np
@@ -29,7 +30,7 @@ def train_graphs(args:dict, task_id:int):
     X_train, X_test, X_val = return_datasets(args=args)
 
     # Create model.
-    model = LightningModel(args=args,task_id=task_id)
+    Light_model = LightningModel(args=args,task_id=task_id)
     training = True
     test = True
     compute_direchlet = False
@@ -43,7 +44,7 @@ def train_graphs(args:dict, task_id:int):
 
     if training:
         print(f'Starting experiment')
-        trainer.fit(model, train_loader, val_loader)
+        trainer.fit(Light_model, train_loader, val_loader)
     if test:
         best_checkpoint_path = callbacks[0].best_model_path
         model = LightningModel.load_from_checkpoint(

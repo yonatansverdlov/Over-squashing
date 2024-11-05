@@ -6,6 +6,7 @@ import random
 import numpy as np
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 from easydict import EasyDict
 from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -26,9 +27,8 @@ class StopAtValAccCallback(pl.Callback):
         else:
             print(f" The current val accuracy is {val_acc}")
 
-
 class LightningModel(pl.LightningModule):
-    def __init__(self, args: EasyDict,task_id):
+    def __init__(self, args: EasyDict,task_id = 0):
         """
         The graph Model.
         Args:

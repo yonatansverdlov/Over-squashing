@@ -56,7 +56,7 @@ Task_specific:
       lr_factor: 0.9
       self_loop_weight: 0.0
       mlp_layers: 0
-      max_epochs: 1000
+      max_epochs: 500
       dim: 64
       mlp_activation_hidden: relu
       mlp_activation_final: relu
