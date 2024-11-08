@@ -1,12 +1,9 @@
 import pytorch_lightning as pl
 import torch
 from torch_geometric.loader.dataloader import DataLoader
-
 from models.lightning_model import LightningModel, StopAtValAccCallback
-from models.graph_model import GraphModel
-from utils import GNN_TYPE, get_args, create_model_dir, compute_energy, return_datasets
+from utils import get_args, create_model_dir, compute_energy, return_datasets
 import random
-import numpy as np
 import argparse
 
 seed = 0
@@ -62,10 +59,10 @@ def train_graphs(args:dict, task_id:int):
 parser = argparse.ArgumentParser(description="Process dataset with a specified radius.")
 
 # Add dataset_name as a string argument (positional)
-parser.add_argument('--dataset_name', type=str, help='Name of the dataset',default = 'Ring')
+parser.add_argument('--dataset_name', type=str, help='Name of the dataset',default = 'Cora')
 
 # Add radius as an integer argument (positional)
-parser.add_argument('--radius', type=int, help='Radius value',default=20)
+parser.add_argument('--radius', type=int, help='Radius value',default=2)
 
 parser.add_argument('--repeat', type=int, help='Number of repeats',default=1)
 
@@ -81,7 +78,7 @@ alls = args.all
 tests = dict()
 if alls:
     if task in ['Ring','CliqueRing','CrossRing']:
-        first, end = 2, 16
+        first, end = 2, 21
     else:
         first, end = 2, 9
 else:
@@ -89,7 +86,7 @@ else:
 
 for depth in range(first,end):
     test_accs = 0.0
-    args, task_specific = get_args(depth=depth, gnn_type=GNN_TYPE.SW, task_type=task)
+    args, task_specific = get_args(depth=depth, gnn_type='SW', task_type=task)
     for repeat in range(repeats):
         energy, test_acc = train_graphs(args = args,task_id=repeat)
         test_accs+=test_acc

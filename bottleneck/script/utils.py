@@ -1,5 +1,4 @@
 import pathlib
-from enum import Enum
 import torch
 import yaml
 from easydict import EasyDict
@@ -7,33 +6,7 @@ from torch import nn
 from torch_geometric.nn import GCNConv, GatedGraphConv, GINConv, GATConv, SAGEConv
 import torch_geometric
 from models.sw_layer import SW_conv
-import shutil, os
 from data_generate.graphs_generation import TreeDataset, CliqueRing, RingDataset
-
-class GNN_TYPE(Enum):
-    """
-    The GNN types.
-    """
-    GCN = 0
-    GGNN = 1
-    GIN = 2
-    GAT = 3
-    SW = 4
-    SAGE = 5
-
-    def __str__(self):
-        if self is GNN_TYPE.GIN:
-            return 'GIN'
-        if self is GNN_TYPE.SW:
-            return 'SW'
-        if self is GNN_TYPE.GAT:
-            return 'GAT'
-        if self is GNN_TYPE.GGNN:
-            return 'GGNN'
-        if self is GNN_TYPE.GCN:
-            return 'GCN'
-        if self is GNN_TYPE.SAGE:
-            return 'SAGE'
 
 def get_layer(args: EasyDict, in_dim: int, out_dim: int):
     """
@@ -44,25 +17,23 @@ def get_layer(args: EasyDict, in_dim: int, out_dim: int):
     :return:
     """
     type = args.gnn_type
-    if type is GNN_TYPE.GCN:
+    if type == 'GCN':
         return GCNConv(
             in_channels=in_dim,
             out_channels=out_dim)
-    elif type is GNN_TYPE.GGNN:
+    elif type == 'GGNN':
         return GatedGraphConv(out_channels=out_dim, num_layers=1)
-    elif str(type) == 'GIN':
+    elif type == 'GIN':
         return GINConv(nn.Sequential(nn.Linear(in_dim, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU(),
                                      nn.Linear(out_dim, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU()))
-    elif str(type) == 'GAT':
+    elif type == 'GAT':
         return GATConv(in_dim, out_dim // 4, heads=4)
-    elif str(type) == 'SW':
+    elif type == 'SW':
         return SW_conv(in_channels=in_dim, out_channels=out_dim,args = args)
-    elif str(type) == 'SAGE':
+    elif type == 'SAGE':
         return SAGEConv(in_channels=in_dim,out_channels=out_dim)
 
-
-
-def get_args(depth: int, gnn_type: GNN_TYPE, task_type: str):
+def get_args(depth: int, gnn_type: str, task_type: str):
     """
     :param depth:
     :param gnn_type:
@@ -70,18 +41,15 @@ def get_args(depth: int, gnn_type: GNN_TYPE, task_type: str):
     :param task_type:
     :return:
     """
-    clean_args = EasyDict()
+    clean_args = EasyDict(depth = depth,gnn_type = gnn_type,task_type = task_type)
     path_to_args = f"{str(pathlib.Path(__file__).parent)}/configs/task_config.yaml"
     with open(path_to_args) as f:
         type_config = EasyDict(yaml.safe_load(f))
     for key, item in type_config['General'].items():
         setattr(clean_args, key, item)
-    for key, item in type_config['Task_specific'][str(gnn_type)][task_type].items():
+    for key, item in type_config['Task_specific'][gnn_type][task_type].items():
         setattr(clean_args, key, item)
 
-    clean_args.depth = depth
-    clean_args.gnn_type = gnn_type
-    clean_args.task_type = task_type
     if task_type == 'Tree':
         if depth in [2,3,4,5,6]:
             batch_size = 1024
@@ -99,18 +67,6 @@ def get_args(depth: int, gnn_type: GNN_TYPE, task_type: str):
         clean_args.accum_grad = accum_grad
         clean_args.val_batch_size = val_batch_size
     
-    if gnn_type is GNN_TYPE.SW:
-        clean_args.layer_type = SW_conv
-    elif gnn_type is GNN_TYPE.GGNN:
-        clean_args.layer_type = GatedGraphConv
-    elif gnn_type is GNN_TYPE.GIN:
-        clean_args.layer_type = GINConv
-    elif gnn_type is GNN_TYPE.GAT:
-        clean_args.layer_type = GATConv
-    elif gnn_type is GNN_TYPE.GCN:
-        clean_args.layer_type = GCNConv
-    elif gnn_type is GNN_TYPE.SAGE:
-        clean_args.layer_type = SAGEConv
     return clean_args, type_config['Task_specific'][str(gnn_type)][task_type]
 
 def compute_dirichlet_energy(data, embedding):
@@ -154,10 +110,6 @@ def create_model_dir(args, task_specific):
         model_name += f'_{key}_{item}'
     path_to_project = str(pathlib.Path(__file__).parent.parent)
     model_dir = f'{path_to_project}/data/models/{str(args.task_type)}/{str(args.gnn_type)}/Radius_{args.depth}/{model_name}'
-    print(model_dir)
-    src = str(pathlib.Path(__file__).parent)
-    if not os.path.exists(model_dir) and False:
-        shutil.copytree(src, model_dir)
     return model_dir, path_to_project
 
 def return_datasets(args):
@@ -165,14 +117,12 @@ def return_datasets(args):
     if task == 'Tree':
         X_train, X_test, X_val = TreeDataset(args=args).generate_data(args.train_fraction)
     if task == 'Ring':
-        X_train, X_test, X_val = RingDataset(args=args, add_crosses=False
-                                             ).generate_data(args.train_fraction)
+        X_train, X_test, X_val = RingDataset(args=args, add_crosses=False).generate_data()
     if task == 'CrossRing':
         X_train, X_test, X_val = RingDataset(args=args, add_crosses=True
-                                             ).generate_data(args.train_fraction)
+                                             ).generate_data()
     if task == 'CliqueRing':
-        X_train, X_test, X_val = CliqueRing(args = args).generate_data(
-            args.train_fraction)
+        X_train, X_test, X_val = CliqueRing(args = args).generate_data()
     if task == 'Actor':
         sets = torch_geometric.datasets.Actor('../data/raw')
         X_train, X_test, X_val = sets, sets, sets
@@ -204,7 +154,7 @@ def return_datasets(args):
         args.in_dim = 1703
         args.out_dim = 5
     if task == 'Cora':
-        sets = torch_geometric.datasets.Planetoid('../data/raw',split = 'geom-gcn',name='Cora')
+        sets = torch_geometric.datasets.Planetoid('.../data/raw',split = 'geom-gcn',name='Cora')
         X_train, X_test, X_val = sets, sets, sets
         args.in_dim = 1433
         args.out_dim = 7

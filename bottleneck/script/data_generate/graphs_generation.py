@@ -8,16 +8,15 @@ import torch
 import torch_geometric
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelBinarizer
 from torch_geometric.data import Data
-from torch_geometric.datasets import Planetoid
-from torch_geometric.data import Dataset
+from easydict import EasyDict
 
 
 class RadiusProblemGraphs(object):
-    def __init__(self, args):
+    def __init__(self, args:EasyDict):
         self.args = args
         self.depth = args.depth
+        self.num_samples = args.num_samples
 
     def generate_data(self, train_fraction):
         raise NotImplementedError
@@ -31,13 +30,10 @@ class RadiusProblemGraphs(object):
 class TreeDataset(RadiusProblemGraphs):
     def __init__(self, args):
         super(TreeDataset, self).__init__(args=args)
-        self.samples = args.num_samples
-        self.depth = args.depth
-        self.args = args
         self.num_nodes, self.edges, self.leaf_indices = self._create_blank_tree()
         self.repeat = args.repeat
 
-    def add_child_edges(self, cur_node, max_node):
+    def add_child_edges(self, cur_node:int, max_node:int):
         edges = []
         leaf_indices = []
         stack = [(cur_node, max_node)]
@@ -70,7 +66,6 @@ class TreeDataset(RadiusProblemGraphs):
 
     def generate_data(self, train_fraction):
         data_list = []
-
         for comb in self.get_combinations():
             edge_index = self.create_blank_tree(add_self_loops=True)
             nodes = torch.tensor(self.get_nodes_features(comb), dtype=int)
@@ -132,18 +127,18 @@ class TreeDataset(RadiusProblemGraphs):
 
     def get_dims(self):
         # get input and output dims
-        in_dim = len(self.leaf_indices)
+        in_dim = len(self.leaf_indices) + 1
         out_dim = len(self.leaf_indices) + 1
         return in_dim, out_dim
 
 
 class RingDataset(RadiusProblemGraphs):
-    def __init__(self, args, add_crosses=False, classes=5):
+    def __init__(self, args:EasyDict, add_crosses:bool=False, classes:int=5):
         super(RingDataset, self).__init__(args=args)
         self.add_crosses = add_crosses
         self.classes = classes
 
-    def generate_ring_transfer_graph(self, nodes, target_label, add_crosses: bool):
+    def generate_ring_transfer_graph(self, nodes:int, target_label:int, add_crosses: bool):
         """
         Generate a ring transfer graph with an option to add crosses.
 
@@ -203,24 +198,17 @@ class RingDataset(RadiusProblemGraphs):
         # Return the graph with nodes, edges, mask and the label
         return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label,train_mask = mask, test_mask = mask)
 
-    def generate_data(self, split):
+    def generate_data(self):
         """
         Generate a dataset of ring transfer graphs.
-
-        Args:
-        - nodes (int): Number of nodes in each graph.
-        - add_crosses (bool): Whether to add cross edges in the ring.
-        - classes (int): Number of different classes or labels.
-        - samples (int): Number of graphs in the dataset.
-
         Returns:
         - list[Data]: List of Torch geometric data structures.
         """
         nodes = 2 * self.depth
         if nodes <= 1: raise ValueError("Minimum of two nodes required")
         dataset = []
-        samples_per_class = self.args.num_samples // self.classes
-        for i in range(self.args.num_samples):
+        samples_per_class = self.num_samples // self.classes
+        for i in range(self.num_samples):
             label = i // samples_per_class
             target_class = np.zeros(self.classes)
             target_class[label] = 1.0
@@ -231,11 +219,11 @@ class RingDataset(RadiusProblemGraphs):
         return X_train, X_test, X_val
 
     def get_dims(self):
-        return self.classes + 1, 5
+        return self.classes, 5
 
 
 class CliqueRing(RadiusProblemGraphs):
-    def __init__(self, args, classes=5):
+    def __init__(self, args:EasyDict, classes:int=5):
         super(CliqueRing, self).__init__(args=args)
         self.classes = classes
 
@@ -290,23 +278,17 @@ class CliqueRing(RadiusProblemGraphs):
         return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,val_mask = mask,
                     train_mask = mask, test_mask = mask)
 
-    def generate_data(self, split):
+    def generate_data(self):
         """
         Generate a dataset of lollipop transfer graphs.
-
-        Args:
-        - nodes (int): Total number of nodes in each graph.
-        - classes (int): Number of different classes or labels.
-        - samples (int): Number of graphs in the dataset.
-
         Returns:
         - list[Data]: List of Torch geometric data structures.
         """
         nodes = 2 * (self.depth - 1)
         if nodes <= 1: raise ValueError("Minimum of two nodes required")
         dataset = []
-        samples_per_class = self.samples // self.classes
-        for i in range(self.samples):
+        samples_per_class = self.num_samples // self.classes
+        for i in range(self.num_samples):
             label = i // samples_per_class
             target_class = np.zeros(self.classes)
             target_class[label] = 1.0

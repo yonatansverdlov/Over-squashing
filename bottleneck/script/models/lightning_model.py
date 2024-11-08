@@ -1,12 +1,9 @@
 """
 Lighting model.
 """
-import random
-
-import numpy as np
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
+from torch import Tensor
 from easydict import EasyDict
 from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -14,10 +11,13 @@ from torch_geometric.data import Data
 
 class StopAtValAccCallback(pl.Callback):
     def __init__(self, target_acc=1.0):
+        """
+        Callback for early stopping in Over-squashing tasks.
+        """
         super().__init__()
         self.target_acc = target_acc
 
-    def on_validation_epoch_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, _):
         # Access the logged metrics
         val_acc = trainer.callback_metrics.get('val_acc')
         # Check if the validation accuracy has reached or exceeded the target
@@ -35,28 +35,24 @@ class LightningModel(pl.LightningModule):
             args: The config.
         """
         super().__init__()
-        self.gnn_type = args.gnn_type
-        self.num_layers = args.depth
+        self.task_id = task_id
         self.lr = args.lr
-        self.dim = args.dim
         self.lr_factor = args.lr_factor
-        self.task_type = args.task_type
-        self.in_dim = args.in_dim
-        self.out_dim = args.out_dim
-        self.single_graph = ['Cora','Actor','Corn','Texas','Wisc','Squir','Cham','Cite','Pubm']
         self.optim_type = args.optim_type
         self.wd = args.wd
-        self.task_id = task_id
+        self.task_type = args.task_type
+        self.single_graph = ['Cora','Actor','Corn','Texas','Wisc','Squir','Cham','Cite','Pubm']
         self.is_real = str(self.task_type) in self.single_graph
+        args.global_task = self.is_real
         self.model = GraphModel(args=args)
 
-    def forward(self, X):
+    def forward(self, X:Data)->Tensor:
         return self.model(X)
     
     def compute_node_embedding(self,X):
         return self.model.compute_node_embedding(X)
 
-    def training_step(self, batch: Data, batch_idx: int) -> torch.float:
+    def training_step(self, batch: Data, _) -> torch.float:
         """
         The training step.
         Args:
@@ -76,7 +72,7 @@ class LightningModel(pl.LightningModule):
         self.log('train_acc', acc, batch_size=label.size(0))
         return loss
 
-    def validation_step(self, batch: Data, batch_idx: int):
+    def validation_step(self, batch: Data, _):
         """
         The validation step.
         Args:
@@ -97,7 +93,7 @@ class LightningModel(pl.LightningModule):
         self.log("val_acc", acc, batch_size=label.size(0))
         return loss
 
-    def test_step(self, batch: Data, batch_idx: int):
+    def test_step(self, batch: Data, _):
         """
         The validation step.
         Args:
