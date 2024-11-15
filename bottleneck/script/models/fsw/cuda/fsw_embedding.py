@@ -88,7 +88,7 @@ import ctypes
 
 # Load the segcumsum shared library from the same directory as the current file
 mydir = os.path.dirname(os.path.abspath(__file__))
-libfsw_embedding_path = os.path.join(mydir, "cuda/libfsw_embedding.so")
+libfsw_embedding_path = os.path.join(mydir, "libfsw_embedding.so")
 # This library will be loaded at FSW_embedding.__init__()
 libfsw_embedding = None
 #libfsw_embedding = ctypes.CDLL(libfsw_embedding_path)

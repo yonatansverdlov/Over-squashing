@@ -1,132 +1,190 @@
-"""
-Lighting model.
-"""
 import pytorch_lightning as pl
 import torch
 from torch import Tensor
 from easydict import EasyDict
 from models.graph_model import GraphModel
+import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
 
 class StopAtValAccCallback(pl.Callback):
+    """
+    Callback for early stopping when validation accuracy reaches a target value.
+    
+    Args:
+        target_acc (float): Accuracy threshold for stopping training early.
+    """
     def __init__(self, target_acc=1.0):
-        """
-        Callback for early stopping in Over-squashing tasks.
-        """
         super().__init__()
         self.target_acc = target_acc
 
     def on_validation_epoch_end(self, trainer, _):
-        # Access the logged metrics
+        """
+        Checks validation accuracy at the end of each epoch, stopping training if the target is met.
+        
+        Args:
+            trainer (Trainer): PyTorch Lightning trainer instance managing training.
+        """
         val_acc = trainer.callback_metrics.get('val_acc')
-        # Check if the validation accuracy has reached or exceeded the target
         if val_acc is not None and val_acc >= self.target_acc:
             trainer.should_stop = True
-            print(f" Stopping training as `val_acc` reached {val_acc:.2f}")
+            print(f"Stopping training as `val_acc` reached {val_acc * 100:.2f}%")
         else:
-            print(f" The current val accuracy is {val_acc}")
+            print(f"Current validation accuracy: {val_acc * 100:.2f}%")
+
 
 class LightningModel(pl.LightningModule):
-    def __init__(self, args: EasyDict,task_id = 0):
-        """
-        The graph Model.
-        Args:
-            args: The config.
-        """
-        super().__init__()
-        self.task_id = task_id
-        self.lr = args.lr
-        self.lr_factor = args.lr_factor
-        self.optim_type = args.optim_type
-        self.wd = args.wd
-        self.task_type = args.task_type
-        self.single_graph = ['Cora','Actor','Corn','Texas','Wisc','Squir','Cham','Cite','Pubm']
-        self.is_real = str(self.task_type) in self.single_graph
-        args.global_task = self.is_real
-        self.model = GraphModel(args=args)
-
-    def forward(self, X:Data)->Tensor:
-        return self.model(X)
+    """
+    PyTorch Lightning Module for training and evaluating a graph neural network model on various datasets.
     
-    def compute_node_embedding(self,X):
+    Args:
+        args (EasyDict): Configuration dictionary containing model parameters.
+        task_id (int): Task index for multi-task training. Default is 0.
+    """
+    def __init__(self, args: EasyDict,model:nn.Module, task_id=0):
+        super().__init__()
+        self.task_id = task_id  # Identifier for the current task in multi-task settings
+        self.lr = args.lr  # Learning rate for the optimizer
+        self.lr_factor = args.lr_factor  # Factor by which the learning rate decreases on plateau
+        self.optim_type = args.optim_type  # Optimizer type (e.g., 'Adam' or 'AdamW')
+        self.weight_decay = args.wd  # Weight decay for regularization
+        self.task_type = args.task_type  # Task type, affecting dataset and model structure
+        self.is_mutag = self.task_type in ['MUTAG','PROTEIN']
+        # Determine if the task is on a single-graph dataset
+        self.is_real = model.is_real # Set global task mode based on dataset type
+        # Initialize the graph model based on the given configuration
+        self.model = model
+
+    def forward(self, X: Data) -> Tensor:
+        """
+        Forward pass through the model.
+        
+        Args:
+            X (Data): Torch Geometric Data object containing node features and edge indices.
+        
+        Returns:
+            Tensor: Predicted outputs for the nodes specified by the root mask.
+        """
+        return self.model(X)
+
+    def compute_node_embedding(self, X: Data) -> Tensor:
+        """
+        Compute node embeddings for the input graph data.
+        
+        Args:
+            X (Data): Torch Geometric Data object containing node features and edge indices.
+        
+        Returns:
+            Tensor: Node embeddings computed by the model.
+        """
         return self.model.compute_node_embedding(X)
 
-    def training_step(self, batch: Data, _) -> torch.float:
+    def training_step(self, batch: Data, _):
         """
-        The training step.
+        Computes training loss and accuracy for a batch and logs them.
+        
         Args:
-            batch: The batch.
-            batch_idx: The batch index-not used.
-
-        Returns: The loss.
-
+            batch (Data): A batch of graph data containing node features, labels, and masks.
+        
+        Returns:
+            Tensor: Training loss computed using cross-entropy.
         """
-        self.model.train()
-        label = batch.y if not self.is_real else batch.y[batch.train_mask[:,self.task_id]] 
-        batch.root_mask = batch.train_mask if not self.is_real else batch.train_mask[:,self.task_id]
+        self.model.train()  # Set model to training mode
+        # Select the appropriate labels and root mask based on task type
+        if self.is_mutag:
+            label = batch.y
+        else:
+            label = batch.y if not self.is_real else batch.y[batch.train_mask[:, self.task_id]]
+            batch.root_mask = batch.train_mask if not self.is_real else batch.train_mask[:, self.task_id]
+        
+        # Forward pass through the model and compute loss
         result = self.model(batch)
-        loss = torch.nn.CrossEntropyLoss()(result, label)
+        loss = torch.nn.CrossEntropyLoss()(result, label)  # Cross-entropy loss for classification
+        
+        # Calculate accuracy as the mean of correct predictions
         acc = (torch.argmax(result, -1) == label).float().mean()
+        
+        # Log training loss and accuracy
         self.log("train_loss", loss, batch_size=label.size(0))
-        self.log('train_acc', acc, batch_size=label.size(0))
+        self.log("train_acc", acc, batch_size=label.size(0))
         return loss
 
     def validation_step(self, batch: Data, _):
         """
-        The validation step.
+        Computes validation loss and accuracy for a batch and logs them.
+        
         Args:
-            batch: The batch.
-            batch_idx: The batch index-not used.
-
-        Returns: The loss.
-
+            batch (Data): A batch of validation graph data.
+        
+        Returns:
+            Tensor: Validation loss computed using cross-entropy.
         """
-        self.model.eval()
-        label = batch.y if not self.is_real else batch.y[batch.val_mask[:,self.task_id]] 
-        batch.root_mask = batch.val_mask if not self.is_real else batch.val_mask[:,self.task_id]
+        self.model.eval()  # Set model to evaluation mode
+        if self.is_mutag:
+            label = batch.y
+        else:
+            # Select the appropriate labels and root mask for validation based on task type
+            label = batch.y if not self.is_real else batch.y[batch.val_mask[:, self.task_id]]
+            batch.root_mask = batch.val_mask if not self.is_real else batch.val_mask[:, self.task_id]
+        
+        # Disable gradient computation for validation
         with torch.no_grad():
             result = self.model(batch)
-            loss = torch.nn.CrossEntropyLoss()(result, label)
-            acc = (torch.argmax(result, -1) == label).float().mean()
+            loss = torch.nn.CrossEntropyLoss()(result, label)  # Cross-entropy loss for validation
+            acc = (torch.argmax(result, -1) == label).float().mean()  # Calculate accuracy
+        
+        # Log validation loss and accuracy
         self.log("val_loss", loss, batch_size=label.size(0))
         self.log("val_acc", acc, batch_size=label.size(0))
         return loss
 
     def test_step(self, batch: Data, _):
         """
-        The validation step.
+        Computes test loss and accuracy for a batch and logs them.
+        
         Args:
-            batch: The batch.
-            batch_idx: The batch index-not used.
-
-        Returns: The loss.
-
+            batch (Data): A batch of test graph data.
+        
+        Returns:
+            Tensor: Test loss computed using cross-entropy.
         """
-        self.model.eval()
-        label = batch.y if not self.is_real else batch.y[batch.test_mask[:,self.task_id]] 
-        batch.root_mask = batch.test_mask if not self.is_real else batch.test_mask[:,self.task_id]
+        self.model.eval()  # Set model to evaluation mode
+        # Select appropriate labels and root mask for test based on task type
+        if self.is_mutag:
+            label = batch.y
+        else:
+            label = batch.y if not self.is_real else batch.y[batch.test_mask[:, self.task_id]]
+            batch.root_mask = batch.test_mask if not self.is_real else batch.test_mask[:, self.task_id]
+        
+        # Disable gradient computation for test
         with torch.no_grad():
             result = self.model(batch)
-            loss = torch.nn.CrossEntropyLoss()(result, label)
-            acc = (torch.argmax(result, -1) == label).float().mean()
+            loss = torch.nn.CrossEntropyLoss()(result, label)  # Cross-entropy loss for testing
+            acc = (torch.argmax(result, -1) == label).float().mean()  # Calculate accuracy
+        
+        # Log test loss and accuracy
         self.log("test_loss", loss, batch_size=label.size(0))
         self.log('test_acc', acc, batch_size=label.size(0))
         return loss
 
     def configure_optimizers(self):
         """
-        Return optimizer.
+        Sets up the optimizer and learning rate scheduler.
+        
+        Returns:
+            Tuple[List[Optimizer], Dict]: List containing the optimizer and a dictionary with the 
+                                          learning rate scheduler configuration.
         """
-        if self.optim_type == 'Adam':
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.wd)  # 0.001
-        elif self.optim_type == 'AdamW':
-            optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.wd)  # 0.001
-        lr_scheduler = ReduceLROnPlateau(optimizer, factor=self.lr_factor, threshold_mode='abs', mode='max')
+        # Select optimizer type and initialize with weight decay
+        optimizer_cls = torch.optim.Adam if self.optim_type == 'Adam' else torch.optim.AdamW
+        optimizer = optimizer_cls(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        
+        # Configure learning rate scheduler to reduce on plateau based on train accuracy
+        lr_scheduler = ReduceLROnPlateau(optimizer, factor=self.lr_factor, mode='max')
         lr_scheduler_config = {
             "scheduler": lr_scheduler,
             "interval": "epoch",
-            "monitor": "train_acc",
+            "monitor": "train_acc",  # Monitors training accuracy
         }
-
         return [optimizer], lr_scheduler_config
+

@@ -1,39 +1,63 @@
 import itertools
 import math
 import random
-from typing import List
-
+random.seed(0)
 import numpy as np
 import torch
 import torch_geometric
-
 from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 from easydict import EasyDict
 
 
 class RadiusProblemGraphs(object):
-    def __init__(self, args:EasyDict):
+    def __init__(self, args:EasyDict, add_crosses,num_classes):
         self.args = args
         self.depth = args.depth
-        self.num_samples = args.num_samples
+        self.num_train_samples = args.num_train_samples
+        self.num_test_samples = args.num_test_samples
+        self.add_crosses = add_crosses
+        self.num_classes = num_classes
+        self.repeat = args.repeat
 
-    def generate_data(self, train_fraction):
+    def generate_sample(self):
         raise NotImplementedError
+    
+    def generate_dataset(self,num_samples):
+        """
+        Generate a dataset of lollipop transfer graphs.
+        Returns:
+        - list[Data]: List of Torch geometric data structures.
+        """
+        nodes = 2 * (self.depth)
+        if nodes <= 1: raise ValueError("Minimum of two nodes required")
+        dataset = []
+        samples_per_class = num_samples // self.num_classes
+        for i in range(num_samples):
+            label = i // samples_per_class
+            target_class = np.zeros(self.num_classes)
+            target_class[label] = 1.0
+            graph = self.generate_sample(nodes, label,self.add_crosses)
+            dataset.append(graph)
 
-    def split_dataset(self, dataset):
+        return dataset
+    
+    def generate_data(self):
         self.args.in_dim, self.args.out_dim = self.get_dims()
-        X_train, X_test, X_val = torch.utils.data.random_split(dataset, [5000, 500, 500])
-        return X_train, X_test, X_val
-
+        X_train = self.generate_dataset(num_samples=self.num_train_samples)
+        X_test = self.generate_dataset(num_samples=self.num_test_samples)
+        return X_train, X_test, X_test
+    
+    def get_dims(self):
+        return self.num_classes, self.num_classes
 
 class TreeDataset(RadiusProblemGraphs):
     def __init__(self, args):
-        super(TreeDataset, self).__init__(args=args)
+        super(TreeDataset, self).__init__(args=args,add_crosses=None,num_classes=None)
         self.num_nodes, self.edges, self.leaf_indices = self._create_blank_tree()
         self.repeat = args.repeat
 
-    def add_child_edges(self, cur_node:int, max_node:int):
+    def add_child_edges(self, cur_node, max_node):
         edges = []
         leaf_indices = []
         stack = [(cur_node, max_node)]
@@ -66,6 +90,7 @@ class TreeDataset(RadiusProblemGraphs):
 
     def generate_data(self, train_fraction):
         data_list = []
+
         for comb in self.get_combinations():
             edge_index = self.create_blank_tree(add_self_loops=True)
             nodes = torch.tensor(self.get_nodes_features(comb), dtype=int)
@@ -127,177 +152,126 @@ class TreeDataset(RadiusProblemGraphs):
 
     def get_dims(self):
         # get input and output dims
-        in_dim = len(self.leaf_indices) + 1
-        out_dim = len(self.leaf_indices) + 1
-        return in_dim, out_dim
+        dim = len(self.leaf_indices) + 1
+        return dim, dim
 
 
 class RingDataset(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, add_crosses:bool=False, classes:int=5):
-        super(RingDataset, self).__init__(args=args)
-        self.add_crosses = add_crosses
-        self.classes = classes
+        super(RingDataset, self).__init__(args=args,add_crosses=add_crosses,num_classes=classes)
 
-    def generate_ring_transfer_graph(self, nodes:int, target_label:int, add_crosses: bool):
+    def generate_sample(self, nodes: int, target_label: int, add_crosses: bool):
         """
         Generate a ring transfer graph with an option to add crosses.
 
         Args:
         - nodes (int): Number of nodes in the graph.
-        - target_label (list): Label of the target node.
+        - target_label (int): Label of the target node.
         - add_crosses (bool): Whether to add cross edges in the ring.
 
         Returns:
         - Data: Torch geometric data structure containing graph details.
         """
-        assert nodes > 1, ValueError("Minimum of two nodes required")
-        # Determine the node directly opposite to the source (node 0) in the ring
-        opposite_node = nodes // 2
+        assert nodes > 1, "Minimum of two nodes required"
 
-        # Initialise feature matrix with a uniform feature.
-        # This serves as a placeholder for features of all nodes.
-        x = np.ones(nodes) 
+        # Initialize feature matrix and set target node feature
+        x = torch.ones(nodes, dtype=torch.int)
+        x[nodes // 2] = target_label  # Target node feature
 
-        # Set feature of the source node to 0 and the opposite node to the target label
-        x[opposite_node] = target_label
+        # Initialize edges with ring structure
+        edge_index = [[i, (i + 1) % nodes] for i in range(nodes)]
+        edge_index += [[(i + 1) % nodes, i] for i in range(nodes)]
 
-        # Convert the feature matrix to a torch tensor for compatibility with Torch geometric
-        x = torch.tensor(x, dtype=torch.int)
+        # Add cross edges if specified
+        if add_crosses:
+            for i in range(nodes // 2):
+                opposite = nodes - 1 - i
+                edge_index.extend([[i, opposite], [opposite, i]])
 
-        # List to store edge connections in the graph
-        edge_index = []
-        for i in range(nodes - 1):
-            # Regular connections that make the ring
-            edge_index.append([i, i + 1])
-            edge_index.append([i + 1, i])
+        # Convert edge list to tensor
+        edge_index = torch.tensor(edge_index, dtype=torch.long).T
 
-            # Conditionally add cross edges, if desired
-            if add_crosses and i < opposite_node:
-                # Add edges from a node to its direct opposite
-                edge_index.append([i, nodes - 1 - i])
-                edge_index.append([nodes - 1 - i, i])
-
-                # Extra logic for ensuring additional "cross" edges in some conditions
-                if nodes + 1 - i < nodes:
-                    edge_index.append([i, nodes + 1 - i])
-                    edge_index.append([nodes + 1 - i, i])
-
-        # Close the ring by connecting the last and the first nodes
-        edge_index.append([0, nodes - 1])
-        edge_index.append([nodes - 1, 0])
-
-        # Convert edge list to a torch tensor
-        edge_index = np.array(edge_index, dtype=int).T
-        edge_index = torch.tensor(edge_index, dtype=int)
-
-        # Create a mask to identify the target node in the graph. Only the source node (index 0) is marked true.
+        # Create mask for target node
         mask = torch.zeros(nodes, dtype=torch.bool)
-        mask[0] = 1
+        mask[0] = 1  # Only the source node (index 0) is marked true
 
-        # Determine the graph's label based on the target label. This is a singular value indicating the index of the target label.
-        # Return the graph with nodes, edges, mask and the label
-        return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label,train_mask = mask, test_mask = mask)
-
-    def generate_data(self):
-        """
-        Generate a dataset of ring transfer graphs.
-        Returns:
-        - list[Data]: List of Torch geometric data structures.
-        """
-        nodes = 2 * self.depth
-        if nodes <= 1: raise ValueError("Minimum of two nodes required")
-        dataset = []
-        samples_per_class = self.num_samples // self.classes
-        for i in range(self.num_samples):
-            label = i // samples_per_class
-            target_class = np.zeros(self.classes)
-            target_class[label] = 1.0
-            graph = self.generate_ring_transfer_graph(nodes=nodes, target_label=label, add_crosses=self.add_crosses)
-            dataset.append(graph)
-
-        X_train, X_test, X_val = self.split_dataset(dataset=dataset)
-        return X_train, X_test, X_val
-
-    def get_dims(self):
-        return self.classes, 5
-
+        # Return the data object
+        return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label, train_mask=mask, test_mask=mask)
 
 class CliqueRing(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, classes:int=5):
-        super(CliqueRing, self).__init__(args=args)
-        self.classes = classes
+        super(CliqueRing, self).__init__(args=args,num_classes = classes,add_crosses = False)
+        self.depth-=1
 
-    def generate_lollipop_transfer_graph(self, nodes: int, target_label: List[int]):
+    def generate_sample(self, nodes: int, target_label: int, _):
         """
         Generate a lollipop transfer graph.
 
         Args:
         - nodes (int): Total number of nodes in the graph.
-        - target_label (list): Label of the target node.
+        - target_label (int): Label of the target node.
 
         Returns:
         - Data: Torch geometric data structure containing graph details.
         """
-        if nodes <= 1: raise ValueError("Minimum of two nodes required")
-        # Initialize node features. The first node gets 0s, while the last gets the target label
-        x = np.ones(nodes) 
-        x[nodes - 1] = target_label
+        if nodes <= 1:
+            raise ValueError("Minimum of two nodes required")
 
-        # Convert the feature matrix to a torch tensor for compatibility with Torch geometric
-        x = torch.tensor(x, dtype=torch.int)
-        edge_index = []
+        # Initialize node features with 1, setting the last node to the target label
+        x = torch.ones(nodes, dtype=torch.int)
+        x[-1] = target_label
 
-        # Construct a clique for the first half of the nodes,
-        # where each node is connected to every other node except itself
-        for i in range(nodes // 2):
-            for j in range(nodes // 2):
-                if i == j:  # Skip self-loops
-                    continue
-                edge_index.append([i, j])
-                edge_index.append([j, i])
+        # Construct edges for a clique in the first half
+        clique_size = nodes // 2
+        edge_index = [[i, j] for i in range(clique_size) for j in range(i + 1, clique_size)]
+        edge_index += [[j, i] for i, j in edge_index]  # Add reverse edges for bidirectionality
 
-        # Construct a path (a sequence of connected nodes) for the second half of the nodes
-        for i in range(nodes // 2, nodes - 1):
-            edge_index.append([i, i + 1])
-            edge_index.append([i + 1, i])
+        # Construct path edges for the second half
+        path_edges = [[i, i + 1] for i in range(clique_size, nodes - 1)]
+        edge_index += path_edges + [[j, i] for i, j in path_edges]  # Add bidirectional path edges
 
         # Connect the last node of the clique to the first node of the path
-        edge_index.append([nodes // 2 - 1, nodes // 2])
-        edge_index.append([nodes // 2, nodes // 2 - 1])
+        edge_index += [[clique_size - 1, clique_size], [clique_size, clique_size - 1]]
 
-        # Convert the edge index list to a torch tensor
-        edge_index = np.array(edge_index, dtype=int).T
-        edge_index = torch.tensor(edge_index, dtype=int)
+        # Convert edge list to tensor
+        edge_index = torch.tensor(edge_index, dtype=torch.long).T
 
-        # Create a mask to indicate the target node (in this case, the first node)
+        # Create mask for the target node (node 0 in this example)
         mask = torch.zeros(nodes, dtype=torch.bool)
         mask[0] = 1
 
-        # Convert the one-hot encoded target label to its corresponding class index
+        return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
+                    val_mask=mask, train_mask=mask, test_mask=mask)
 
-        return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,val_mask = mask,
-                    train_mask = mask, test_mask = mask)
+from torch_geometric.data import Dataset
 
-    def generate_data(self):
-        """
-        Generate a dataset of lollipop transfer graphs.
-        Returns:
-        - list[Data]: List of Torch geometric data structures.
-        """
-        nodes = 2 * (self.depth - 1)
-        if nodes <= 1: raise ValueError("Minimum of two nodes required")
-        dataset = []
-        samples_per_class = self.num_samples // self.classes
-        for i in range(self.num_samples):
-            label = i // samples_per_class
-            target_class = np.zeros(self.classes)
-            target_class[label] = 1.0
-            graph = self.generate_lollipop_transfer_graph(nodes, label)
-            dataset.append(graph)
+class MUTAG(Dataset):
+    def __init__(self,data_path):
+        self.dataset = torch_geometric.datasets.Entities(data_path,name = "MUTAG")
+        self._indices = self.dataset.indices()
+        self.transform = None
 
-        X_train, X_test, X_val = self.split_dataset(dataset=dataset)
+    def get(self,idx):
+        sample = self.dataset[idx]
+        new_sample = Data()
+        new_sample.edge_index = sample.edge_index
+        num_nodes = sample.num_nodes  # or data.num_nodes if you're working with a data object
+        train_idx = torch.tensor(sample.train_idx)  # replace with actual indices
+        val_idx = torch.tensor(sample.test_idx)      # replace with actual indices
+        test_idx = torch.tensor(sample.test_idx)    # replace with actual indices
 
-        return X_train, X_test, X_val
+        # Initialize masks with False
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        test_mask = torch.zeros(num_nodes, dtype=torch.bool)
 
-    def get_dims(self):
-        return self.classes, 5
+        # Set the indices to True
+        train_mask[train_idx] = True
+        val_mask[val_idx] = True
+        test_mask[test_idx] = True
+        new_sample.train_mask = train_mask
+        new_sample.test_mask = test_mask
+        new_sample.val_mask = val_mask
+        new_sample.x = torch.zeros(num_nodes * 128, dtype=torch.int)
+
+        return new_sample

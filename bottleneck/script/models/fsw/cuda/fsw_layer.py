@@ -149,7 +149,6 @@ class SW_conv(MessagePassing):
     def __init__(self,
                  in_channels, out_channels, 
                  args,
-                 edgefeat_dim=0,
                  embed_dim=None, 
                  encode_vertex_degrees=True, vertex_degree_encoding_function='identity', homog_degree_encoding=False, 
                  concat_self = True,
@@ -161,6 +160,7 @@ class SW_conv(MessagePassing):
         
         super().__init__(aggr=None)
         mlp_layers = args.mlp_layers
+        edgefeat_dim = args.edgefeat_dim
         mlp_activation_final = return_act(args.mlp_activation_final)
         mlp_activation_hidden = return_act(args.mlp_activation_hidden)
         dropout_final = args.dropout_final
@@ -424,4 +424,3 @@ class FSW_readout(SW_conv):
             out = emb
 
         return out
-    

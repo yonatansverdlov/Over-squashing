@@ -4,61 +4,99 @@ import torch.nn.functional as F
 from utils import get_layer
 from easydict import EasyDict
 from torch_geometric.data import Data
+from torch_geometric.nn import global_mean_pool
 
-class GraphModel(torch.nn.Module):
-    def __init__(self, args:EasyDict, dtype=torch.float32):
-        super(GraphModel, self).__init__()
+from torch_geometric.nn.conv import MessagePassing
+
+class GraphModel(nn.Module):
+    """
+    A customizable graph neural network model with optional tree-specific embeddings, residual connections, 
+    and layer normalization. This model is designed for graph tasks in the Torch Geometric framework.
+    
+    Args:
+    - args (EasyDict): A configuration dictionary containing model parameters.
+    - dtype (torch.dtype): Data type for embedding layers. Default is torch.float32.
+    """
+    def __init__(self, args: EasyDict, dtype=torch.float32):
+        super().__init__()
         self.use_layer_norm = args.use_layer_norm
         self.use_activation = args.use_activation
         self.use_residual = args.use_residual
         self.num_layers = args.depth
-        self.in_dim = args.in_dim
-        self.out_dim = args.out_dim
         self.h_dim = args.dim
         self.task_type = args.task_type
-        self.global_task = args.global_task
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.embed_label = nn.Embedding(num_embeddings=self.in_dim, embedding_dim=self.h_dim, dtype=dtype)
-        self.embed_value = nn.Embedding(num_embeddings=self.in_dim, embedding_dim=self.h_dim, dtype=dtype)
-        self.layers = nn.ModuleList()
-        self.layer_norms = nn.ModuleList()
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squir', 'Cham', 'Cite', 'Pubm','MUTAG','PROTEIN'}
+        self.is_real = self.task_type in self.single_graph_datasets
         self.is_tree = self.task_type == 'Tree'
-        if self.global_task:
-            self.embed_label = nn.Linear(self.in_dim,self.h_dim)
-        for _ in range(self.num_layers):
-                self.layers.append(get_layer(
-                    in_dim=self.h_dim,
-                    out_dim =self.h_dim,
-                    args=args))
-        if self.use_layer_norm:
-            for _ in range(self.num_layers):
-                self.layer_norms.append(nn.LayerNorm(self.h_dim))
+        self.is_mutag = self.task_type in ['MUTAG']
+        
+        # Embedding initialization for label and value embeddings based on task type
+        self.embed_label = (nn.Linear(args.in_dim, self.h_dim) if self.is_real
+                            else nn.Embedding(args.in_dim, self.h_dim, dtype=dtype))
+        self.embed_value = (nn.Embedding(args.in_dim, self.h_dim, dtype=dtype) if self.is_tree else None)
 
-        self.out_layer =  nn.Linear(in_features=self.h_dim, out_features=self.out_dim)
+        if self.is_mutag:
+            self.embed_egde = nn.Linear(4, self.h_dim)
+
+        # Initialize model layers and optional layer normalizations
+        self.layers = nn.ModuleList([get_layer(args,self.h_dim, self.h_dim) for _ in range(self.num_layers)])
+        self.layer_norms = (nn.ModuleList([nn.LayerNorm(self.h_dim) for _ in range(self.num_layers)])
+                            if self.use_layer_norm else None)
+        
+        # Output layer to map to the final output dimension
+        self.out_layer = nn.Linear(self.h_dim, args.out_dim)
         self.init_model()
 
     def init_model(self):
-        torch.nn.init.xavier_uniform_(self.out_layer.weight)
+        """
+        Initializes model parameters using Xavier (Glorot) uniform initialization for the output layer.
+        This ensures stable gradients in the output layer at the start of training.
+        """
+        if not self.is_mutag:
+            nn.init.xavier_uniform_(self.out_layer.weight)
+        else:
+            nn.init.xavier_uniform_(self.embed_egde.weight)
 
-    def forward(self, data:Data):
-        x = self.compute_node_embedding(data=data)
-        preds = self.out_layer(x)[data.root_mask]
-        return preds
-    
-    def compute_node_embedding(self,data):
-        x, edge_index = data.x, data.edge_index
+    def forward(self, data: Data):
+        """
+        Forward pass through the graph model.
+        
+        Args:
+        - data (Data): A Torch Geometric `Data` object containing graph node features and edges.
+        
+        Returns:
+        - torch.Tensor: Model predictions for nodes indicated by the root mask in `data`.
+        """
+        x = self.compute_node_embedding(data)
+        if self.is_mutag or self.task_type == 'PROTEIN':
+           return global_mean_pool(x,data.batch)
+        else:
+          return self.out_layer(x)[data.root_mask]
+
+    def compute_node_embedding(self, data: Data):
+        """
+        Computes node embeddings by applying embedding layers, graph layers, activations, residual connections,
+        and layer normalization as specified by the configuration.
+        
+        Args:
+        - data (Data): A Torch Geometric `Data` object containing node features (`x`) and edge indices (`edge_index`).
+        
+        Returns:
+        - torch.Tensor: Node embeddings of shape `(num_nodes, h_dim)`, where `h_dim` is the hidden dimension.
+        """
+        x, edge_index,edge_attr = data.x, data.edge_index, None
+
+        # Tree-specific embedding combining label and value embeddings; otherwise, standard label embedding
         if self.is_tree:
-            x_key, x_val = x[:, 0], x[:, 1]
-            x_key_embed = self.embed_label(x_key)
-            x_val_embed = self.embed_value(x_val)
-            x = x_key_embed + x_val_embed
+            x = self.embed_label(x[:, 0]) + self.embed_value(x[:, 1])
         else:
             x = self.embed_label(x)
 
-        for i in range(self.num_layers):
-            layer = self.layers[i]
+        for i, layer in enumerate(self.layers):
             new_x = x
-            new_x = layer(new_x, edge_index)
+            if self.is_mutag:
+                edge_attr = self.embed_egde(data.edge_attr)
+            new_x = layer(new_x, edge_index, edge_attr)
             if self.use_activation:
                 new_x = F.relu(new_x)
             if self.use_residual:
@@ -67,7 +105,6 @@ class GraphModel(torch.nn.Module):
                 x = new_x
             if self.use_layer_norm:
                 x = self.layer_norms[i](x)
+
         return x
-
-
 
