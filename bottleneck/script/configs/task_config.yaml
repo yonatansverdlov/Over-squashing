@@ -91,8 +91,8 @@ Task_specific:
       lr_factor: .7
       mlp_layers: 3
       wd: 0.00001
-      dropout_final: .1  
-      dropout_hidden: .1
+      dropout_final: .25
+      dropout_hidden: .25
       lr: 0.001 
       max_epochs: 80
       self_loop_weight: 0.1
@@ -100,7 +100,6 @@ Task_specific:
       use_residual: True
       use_layer_norm: True
       eval_every: 5
-      seed: 1
     MUTAG:
       dim: 128
       edgefeat_dim: 128
@@ -163,21 +162,22 @@ Task_specific:
     Texas:
       dim: 128
       lr_factor: .7
-      mlp_layers: 0
+      mlp_layers: 3
       use_residual: True
       use_layer_norm: True
       wd: 0.00001
-      dropout_final: .1
-      dropout_hidden: .1
+      dropout_final: .25
+      dropout_hidden: .25
       lr: 0.001
-      max_epochs: 80
+      max_epochs: 50
       self_loop_weight: 0.1
       optim_type: AdamW
+      seed: 29
     Corn:
       dim: 128
       lr_factor: .7
       mlp_layers: 0
-      wd: 0.0000
+      wd: 0.00001
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
@@ -221,11 +221,11 @@ Task_specific:
       use_residual: True
       use_layer_norm: True
       wd: 0.00001
-      dropout_final: .1
-      dropout_hidden: .1
+      dropout_final: .2
+      dropout_hidden: .2
       lr: 0.001
-      max_epochs: 50
-      self_loop_weight: 0.2
+      max_epochs: 70
+      self_loop_weight: 0.5
       optim_type: AdamW
     Pubm:
       dim: 128

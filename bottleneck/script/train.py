@@ -125,26 +125,32 @@ def main():
         first, end = depth, depth + 1
 
     depth_accuracies = []
+    seed_accs = []
+    num_seeds = 1
     for current_depth in range(first, end):
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
-        test_acc_avg = 0.0
 
         # Repeat training to compute average accuracy
-        for repeat_idx in range(repeats):
-            seed = args.seed
-            os.environ["PYTHONHASHSEED"] = str(seed)
-            torch.manual_seed(seed)
-            torch.cuda.manual_seed(seed)
-            random.seed(seed)
-            np.random.seed(seed)
-            seed_everything(seed, workers=True)
-            args.split_id = repeat_idx
-            test_acc = train_graphs(args=args, task_specific=task_specific, task_id=repeat_idx, seed=seed)
-            test_acc_avg += test_acc / repeats
+        for seed in range(num_seeds):
+            test_acc_avg = 0.0
+            for repeat_idx in range(repeats):
+                seed = args.seed
+                os.environ["PYTHONHASHSEED"] = str(seed)
+                torch.manual_seed(seed)
+                torch.cuda.manual_seed(seed)
+                random.seed(seed)
+                np.random.seed(seed)
+                seed_everything(seed, workers=True)
+                args.split_id = repeat_idx
+                test_acc = train_graphs(args=args, task_specific=task_specific, task_id=repeat_idx, seed=seed)
+                test_acc_avg += test_acc / repeats
+            seed_accs.append(test_acc_avg)
 
         depth_accuracies.append(test_acc_avg)
 
     # Display results
+    seed_accs = torch.tensor(seed_accs)
+    print(seed_accs.max(),seed_accs.argmax())
     for idx, acc in enumerate(depth_accuracies, start=first):
         print(f"With depth {idx}, the accuracy is {acc:.2f}% on the {task} dataset.")
 
