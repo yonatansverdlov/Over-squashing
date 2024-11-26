@@ -177,7 +177,6 @@ class RingDataset(RadiusProblemGraphs):
         # Initialize feature matrix and set target node feature
         x = torch.ones(nodes, dtype=torch.int)
         x[nodes // 2] = target_label  # Target node feature
-
         # Initialize edges with ring structure
         edge_index = [[i, (i + 1) % nodes] for i in range(nodes)]
         edge_index += [[(i + 1) % nodes, i] for i in range(nodes)]
@@ -219,7 +218,6 @@ class CliqueRing(RadiusProblemGraphs):
 
         # Initialize node features with 1, setting the last node to the target label
         x = torch.ones(nodes, dtype=torch.int)
-        x[-1] = target_label
 
         # Construct edges for a clique in the first half
         clique_size = nodes // 2
@@ -242,36 +240,3 @@ class CliqueRing(RadiusProblemGraphs):
 
         return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
                     val_mask=mask, train_mask=mask, test_mask=mask)
-
-from torch_geometric.data import Dataset
-
-class MUTAG(Dataset):
-    def __init__(self,data_path):
-        self.dataset = torch_geometric.datasets.Entities(data_path,name = "MUTAG")
-        self._indices = self.dataset.indices()
-        self.transform = None
-
-    def get(self,idx):
-        sample = self.dataset[idx]
-        new_sample = Data()
-        new_sample.edge_index = sample.edge_index
-        num_nodes = sample.num_nodes  # or data.num_nodes if you're working with a data object
-        train_idx = torch.tensor(sample.train_idx)  # replace with actual indices
-        val_idx = torch.tensor(sample.test_idx)      # replace with actual indices
-        test_idx = torch.tensor(sample.test_idx)    # replace with actual indices
-
-        # Initialize masks with False
-        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
-        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
-        test_mask = torch.zeros(num_nodes, dtype=torch.bool)
-
-        # Set the indices to True
-        train_mask[train_idx] = True
-        val_mask[val_idx] = True
-        test_mask[test_idx] = True
-        new_sample.train_mask = train_mask
-        new_sample.test_mask = test_mask
-        new_sample.val_mask = val_mask
-        new_sample.x = torch.zeros(num_nodes * 128, dtype=torch.int)
-
-        return new_sample

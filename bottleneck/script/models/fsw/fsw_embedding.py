@@ -1,7 +1,11 @@
+# Fourier Sliced-Wasserstein Embedding for Multisets and Measures
 
+# Authors: Tal Amir, Nadav Dym
+# Technion Institute of Technology
+# Haifa, Israel
 
-version = '2.12'
-version_date = '2024-00-04'
+version = '2.14'
+version_date = '2024-09-30'
 
 # Edge features:
 # - Do not split self.projVecs. Do self.projVecs.shape[1] == d_in + d_edge.
@@ -28,6 +32,7 @@ version_date = '2024-00-04'
 #    directly from a saved state_dict.
 
 # Changelog:
+# 2.13    added support for total_mass_encoding_scale
 # 2.12    added support for total_mass_encoding_function
 # 2.11    fixed sparse padding bug
 # 2.1     added full edge-feature support
@@ -88,7 +93,7 @@ import ctypes
 
 # Load the segcumsum shared library from the same directory as the current file
 mydir = os.path.dirname(os.path.abspath(__file__))
-libfsw_embedding_path = os.path.join(mydir, "libfsw_embedding.so")
+libfsw_embedding_path = os.path.join(mydir, "cuda/libfsw_embedding.so")
 # This library will be loaded at FSW_embedding.__init__()
 libfsw_embedding = None
 #libfsw_embedding = ctypes.CDLL(libfsw_embedding_path)
@@ -171,9 +176,10 @@ class FSW_embedding(nn.Module):
                  d_edge : int = 0, # dimension of edge feature vectors. requires calling forward() with graph_mode=True
                  encode_total_mass : bool = False, # Tells whether to encode the input multiset sizes (a.k.a. total mass) in the embedding
                  total_mass_encoding_function : str = 'identity', # 'identity' : f(x)=x, 'sqrt' : f(x) = sqrt(1+x)-1, 'log' : log(1+x)
+                 total_mass_encoding_scale : int | float = 1.0,                 
                  total_mass_encoding_method : str = 'plain', # 'plain' / 'homog' / 'homog_alt'
                  total_mass_pad_thresh : float | int = 1.0, # Multisets/mesaures with a total mass below that threshold get padded with the complementary mass placed at x=0
-                 learnable_slices : bool = False, learnable_freqs : bool = False, learnable_powers : bool = False,
+                 learnable_slices : bool = False, learnable_freqs : bool = False, learnable_total_mass_encoding_scale : bool = False,
                  freqs_init : float | int | str | tuple[float,float] = 'random',
                  minimize_slice_coherence : bool = False,
                  enable_bias : bool = True,
@@ -194,7 +200,7 @@ class FSW_embedding(nn.Module):
                 qprintln(report, 'Loaded custom CUDA library \'%s\'' % (libfsw_embedding_path))
             except OSError as e:
                 if fsw_embedding_produce_error_on_custom_library_loading_failure:
-                    raise RuntimeError('Error loading custom CUDA library \'%s\'. To circumvent this, set load_custom_cuda_lib=False at FSW_embedding() init, or set fsw_embedding_produce_error_on_custom_library_loading_failure=False at FSW_embedding.py code. This will use pure PyTorch code instead of the custom CUDA library, which is a bit slower.' % (libfsw_embedding_path))
+                    raise RuntimeError('Error loading custom CUDA library \'%s\'. Try rebuilding it by running the script file \'build_fsw_embedding\' found at the same directory. If this doesn\'t help, this error can be circumvented by setting load_custom_cuda_lib=False at FSW_embedding() init, or setting fsw_embedding_produce_error_on_custom_library_loading_failure=False at FSW_embedding.py code. This will use pure PyTorch code instead of the custom CUDA library, which is a bit slower.' % (libfsw_embedding_path))
                 elif self.user_warnings:
                     warnings.warn('Could not load custom CUDA library \'%s\'. Using pure torch implementation, which is a bit slower. (To silence, set user_warnings=False at FSW_embedding() init)' % (libfsw_embedding_path), UserWarning)
                 libfsw_embedding = None
@@ -213,6 +219,7 @@ class FSW_embedding(nn.Module):
 
         self.encode_total_mass = encode_total_mass
         self.total_mass_encoding_dim = 1 if self.encode_total_mass else 0
+        self.total_mass_encoding_scale_init = total_mass_encoding_scale
 
         total_mass_pad_thresh = float(total_mass_pad_thresh)
         assert not np.isinf(total_mass_pad_thresh), 'total_mass_pad_thresh cannot be inf'
@@ -263,7 +270,7 @@ class FSW_embedding(nn.Module):
 
         self.learnable_slices = learnable_slices
         self.learnable_freqs = learnable_freqs
-        self.learnable_powers = learnable_powers
+        self.learnable_total_mass_encoding_scale = learnable_total_mass_encoding_scale
 
         # Note: freqs_init is checked for correctness downstream at generate_embedding_parameters()
         self.freqs_init = freqs_init
@@ -280,12 +287,15 @@ class FSW_embedding(nn.Module):
         self.report_on_coherence_minimization = report_on_coherence_minimization
 
         qprintln(report)
+        qprintln(report, 'Fourier Sliced-Wasserstein Embedding')
         qprintln(report, 'version %s, %s' % (version, version_date))
 
         qprintln(report)
+        qprintln(report, 'Tal Amir, Nadav Dym')
+        qprintln(report, 'Technion Institute of Technology, Haifa, Israel')
 
         qprintln(report)
-        qprintln(report, 'Based on our paper titled "Fourier Sliced-Wasserstrin Embedding for Multisets and Distributions", 2024')
+        qprintln(report, 'Based on our paper titled "Fourier Sliced-Wasserstrin Embedding for Multisets and Measures", 2024')
 
         qprintln(report)
         qprintln(report, 'Constructing embedding for sets in %s into %s  ' % (input_space_name, output_space_name))
@@ -369,11 +379,12 @@ class FSW_embedding(nn.Module):
 
         # Generate projection vectors and frequencies
         # We always generate (and optimize) them in float64 and then convert to the desired dtype.
-        projVecs, freqs, bias = FSW_embedding.generate_embedding_parameters(d_in=self.d_in+self.d_edge, 
+        projVecs, freqs, bias, total_mass_encoding_scale = FSW_embedding.generate_embedding_parameters(d_in=self.d_in+self.d_edge, 
                                                                            nSlices=self.nSlices, nFreqs=self.nFreqs,
                                                                            cartesian_mode=self.cartesian_mode,
                                                                            collapse_freqs=self.collapse_freqs,
                                                                            total_mass_encoding_dim=self.total_mass_encoding_dim,
+                                                                           total_mass_encoding_scale_init=self.total_mass_encoding_scale_init,
                                                                            freqs_init=self.freqs_init,
                                                                            minimize_slice_coherence=self.minimize_slice_coherence,
                                                                            device=device,
@@ -393,6 +404,9 @@ class FSW_embedding(nn.Module):
                 bias = bias.reshape((self.nSlices*self.nFreqs))
 
             self.bias = nn.Parameter( bias, requires_grad=self.learnable_slices )
+
+        if self.encode_total_mass:
+            self.total_mass_encoding_scale = nn.Parameter( total_mass_encoding_scale, requires_grad=self.learnable_total_mass_encoding_scale )
 
         # This also initializes the .device and .dtype fields
         self.to(device=self.get_device(), dtype=self.get_dtype())
@@ -428,7 +442,8 @@ class FSW_embedding(nn.Module):
     
 
 
-    def generate_embedding_parameters(d_in, nSlices, nFreqs, cartesian_mode, collapse_freqs, total_mass_encoding_dim,
+    def generate_embedding_parameters(d_in, nSlices, nFreqs, cartesian_mode, collapse_freqs,
+                                      total_mass_encoding_dim, total_mass_encoding_scale_init,
                                       freqs_init, minimize_slice_coherence, device, report, report_on_coherence_minimization):
         dtype_init = torch.float64
 
@@ -441,12 +456,25 @@ class FSW_embedding(nn.Module):
         projVecs = nn.functional.normalize(projVecs, p=2.0, dim=ambspace_axis, eps=0, out=None)
 
         if minimize_slice_coherence:
-            if nSlices > d_in:
+            # We use mutual-coherence minimization even when nSlices <= d_in, where we could use
+            # the QR or SVD methods below, since in low-memory conditions these methods sometimes
+            # crash out of memory, whereas minimize_mutual_coherence() works well.
+            #TODO: Deal with degenerate cases such as d_in = 1 or nSlices=1, nSlices=0
+            if (nSlices > d_in) or True:
                 projVecs = minimize_mutual_coherence(projVecs, report=report_on_coherence_minimization)
                 qprintln(report, '- Generated %d projection vectors in R^%d with minimized mutual coherence' % (nSlices, d_in))
             else:
-                projVecs, _ = torch.linalg.qr(projVecs.transpose(0,1), mode='reduced')
-                projVecs = projVecs.transpose(0,1)
+                # Here we need to compute a set of nSlices orthogonal vectors in R^d_in.
+                # Below are two methods to do so: SVD and QR decomposition.
+                if True:
+                    U, S, Vh = torch.linalg.svd(projVecs, full_matrices=False)
+                    projVecs = Vh
+                    del U, S, Vh
+                else:                    
+                    projVecs = projVecs.transpose(0,1)
+                    projVecs, R = torch.linalg.qr(projVecs, mode='reduced')
+                    del R
+                    projVecs = projVecs.transpose(0,1)
                 qprintln(report, '- Generated %d perpendicular projection vectors in R^%d using QR decomposition' % (nSlices, d_in))
         else:
             qprintln(report, '- Generated %d random projection vectors' % (nSlices))
@@ -521,9 +549,14 @@ class FSW_embedding(nn.Module):
 
         bias = torch.zeros(size=bias_shape, dtype=dtype_init, device=device)
 
+        if total_mass_encoding_dim > 0:
+            total_mass_encoding_scale = torch.tensor(total_mass_encoding_scale_init, device=device, dtype=dtype_init)
+        else:
+            total_mass_encoding_scale = None
+
         qprintln(report)
 
-        return projVecs, freqs, bias
+        return projVecs, freqs, bias, total_mass_encoding_scale
 
 
 
@@ -649,7 +682,7 @@ class FSW_embedding(nn.Module):
         if X_edge is not None:
             assert torch.is_tensor(W), 'When X_edge is provided, W must be provided explicitly'
             assert (X_edge.device == self.get_device()), ( "X_edge is on the wrong device. Expected %s, got %s" % (self.get_device(), X_edge.device) )
-            assert (X_edge.dtype == self.get_dtype()), ( "X_edge has the wrong dtype. Expected %s, got %s" % (self.get_dtype(), X.dtype) )        
+            assert (X_edge.dtype == self.get_dtype()), ( "X_edge has the wrong dtype. Expected %s, got %s" % (self.get_dtype(), X_edge.dtype) )        
 
             if X_edge.is_sparse or X_edge.layout != torch.strided:
                 assert X_edge.layout == torch.sparse_coo, ( "Sparse X_edge has an unsupported sparsity layout '%s'. Only the COO layout (torch.sparse_coo) is currently supported." % (X_edge.layout) )
@@ -827,7 +860,7 @@ class FSW_embedding(nn.Module):
                 # x/(sqrt(x+1)+1) is a numerically-safe formulation of sqrt(1+x)-1
                 # note that we don't use sqrt(1+x) since we need the function to vanish at x=0,
                 # and we don't use sqrt(x) since we need it to have a gradient at x=0.
-                total_mass = W_sum / ( torch.sqrt(W_sum + 1) + 1)
+                total_mass = 2*( W_sum / ( torch.sqrt(W_sum + 1) + 1) )
             elif self.total_mass_encoding_function == 'log':
                 total_mass = torch.log1p(W_sum)
             else:
@@ -835,6 +868,9 @@ class FSW_embedding(nn.Module):
             
             del W_sum
             
+            #print('Total mass scale: ', self.total_mass_encoding_scale.item(), 'requires grad: ', self.total_mass_encoding_scale.requires_grad)
+            total_mass *= self.total_mass_encoding_scale
+
             if self.total_mass_encoding_method == 'plain':
                 X_emb = torch.cat( (total_mass, X_emb), dim=-1)
             elif self.total_mass_encoding_method == 'homog':
@@ -3050,6 +3086,11 @@ def minimize_mutual_coherence_p(X_init, p, step_size_init, improvement_thresh, n
     # Initialization
     n = X_init.shape[0]
 
+    if X_init.numel() == 0:
+        return X_init, step_size_init
+    elif n == 1:
+        return torch.nn.functional.normalize(X_init), step_size_init
+    
     onevec = torch.ones([n,1], dtype=X_init.dtype, device=X_init.device)
 
     mu_init = calc_mu_from_G(calc_G(X_init))
@@ -3205,6 +3246,3 @@ def eval_G(G, p):
     objective = mu * torch.pow( rho * torch.sum( torch.pow( torch.abs(G/mu), p ) ), 1.0/p )
 
     return mu, objective
-
-
-

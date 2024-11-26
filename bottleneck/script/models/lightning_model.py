@@ -51,7 +51,9 @@ class LightningModel(pl.LightningModule):
         self.task_type = args.task_type  # Task type, affecting dataset and model structure
         self.is_mutag = self.task_type in ['MUTAG','PROTEIN']
         # Determine if the task is on a single-graph dataset
-        self.is_real = model.is_real # Set global task mode based on dataset type
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squir', 
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN', 'lifshiz_comp'}
+        self.need_continuous_features = self.task_type in self.single_graph_datasets
         # Initialize the graph model based on the given configuration
         self.model = model
 
@@ -94,8 +96,8 @@ class LightningModel(pl.LightningModule):
         if self.is_mutag:
             label = batch.y
         else:
-            label = batch.y if not self.is_real else batch.y[batch.train_mask[:, self.task_id]]
-            batch.root_mask = batch.train_mask if not self.is_real else batch.train_mask[:, self.task_id]
+            label = batch.y if not self.need_continuous_features else batch.y[batch.train_mask[:, self.task_id]]
+            batch.root_mask = batch.train_mask if not self.need_continuous_features else batch.train_mask[:, self.task_id]
         
         # Forward pass through the model and compute loss
         result = self.model(batch)
@@ -124,8 +126,8 @@ class LightningModel(pl.LightningModule):
             label = batch.y
         else:
             # Select the appropriate labels and root mask for validation based on task type
-            label = batch.y if not self.is_real else batch.y[batch.val_mask[:, self.task_id]]
-            batch.root_mask = batch.val_mask if not self.is_real else batch.val_mask[:, self.task_id]
+            label = batch.y if not self.need_continuous_features else batch.y[batch.val_mask[:, self.task_id]]
+            batch.root_mask = batch.val_mask if not self.need_continuous_features else batch.val_mask[:, self.task_id]
         
         # Disable gradient computation for validation
         with torch.no_grad():
@@ -153,8 +155,8 @@ class LightningModel(pl.LightningModule):
         if self.is_mutag:
             label = batch.y
         else:
-            label = batch.y if not self.is_real else batch.y[batch.test_mask[:, self.task_id]]
-            batch.root_mask = batch.test_mask if not self.is_real else batch.test_mask[:, self.task_id]
+            label = batch.y if not self.need_continuous_features else batch.y[batch.test_mask[:, self.task_id]]
+            batch.root_mask = batch.test_mask if not self.need_continuous_features else batch.test_mask[:, self.task_id]
         
         # Disable gradient computation for test
         with torch.no_grad():

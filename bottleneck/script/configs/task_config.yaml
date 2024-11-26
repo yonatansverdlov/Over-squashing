@@ -1,21 +1,22 @@
 General:
   use_residual: False
   use_layer_norm: False
-  use_activation: False
   loader_workers: 2
   mlp_layers: 0
   eval_every: 5
   wd: 0.0
-  self_loop_weight: 0.0
-  num_samples: 32000
+  self_loop_weight: 0.1
+  num_train_samples: 32000
+  num_test_samples: 1000
   lr: 0.001
+  train_fraction: 0.8
   dropout_final: .0
   dropout_hidden: .0
   max_epochs: 100
   batchNorm_final: True
   batchNorm_hidden: True
-  mlp_activation_hidden: leaky
-  mlp_activation_final: leaky
+  mlp_activation_hidden: relu
+  mlp_activation_final: relu
   val_batch_size: 1024
   accum_grad: 1
   repeat: 1
@@ -23,16 +24,30 @@ General:
   learnable_embedding: True
   optim_type: Adam
   mlp_init: ~
+  edgefeat_dim: 0
+  seed: 0
+  dtype: torch.float32
+  take_last: False
 Task_specific:
   SW:
+    lifshiz_comp:
+      dim: 1000
+      edgefeat_dim: 0
+      mlp_layers: 0
+      homog_degree_encoding: False
+      concat_self: False
+      in_dim: 10
+      out_dim: 1000
+      dtype: torch.float64
+      
     Ring:
       batch_size: 5
       dim: 64
       lr_factor: .7
       num_samples: 5
       mlp_layers: 3
-      mlp_activation_hidden: leaky
-      mlp_activation_final: leaky
+      mlp_activation_hidden: lrelu
+      mlp_activation_final: lrelu
       max_epochs: 200
       num_train_samples: 5
       num_test_samples: 5
@@ -72,11 +87,11 @@ Task_specific:
       use_residual: True
       use_layer_norm: True
     Cora:
-      dim: 256
-      lr_factor: .5
-      mlp_layers: 0
+      dim: 128
+      lr_factor: .7
+      mlp_layers: 3
       wd: 0.00001
-      dropout_final: .1
+      dropout_final: .1  
       dropout_hidden: .1
       lr: 0.001 
       max_epochs: 80
@@ -85,37 +100,39 @@ Task_specific:
       use_residual: True
       use_layer_norm: True
       eval_every: 5
+      seed: 1
     MUTAG:
       dim: 128
       edgefeat_dim: 128
       lr_factor: .9
       mlp_layers: 3
-      batch_size: 16
+      batch_size: 8
       wd: 0.0001
       dropout_final: .1
       dropout_hidden: .1
-      lr: 0.001
+      lr: 0.0005
       max_epochs: 80
       optim_type: AdamW
       use_residual: True
       use_layer_norm: True
       eval_every: 5
+      seed: 15
+      take_last: True
     PROTEIN:
       dim: 128
-      edgefeat_dim: 0 
+      edgefeat_dim: 0
       lr_factor: .9
       mlp_layers: 3
-      batch_size: 32
+      batch_size: 4
       wd: 0.0001
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
-      max_epochs: 80
+      max_epochs: 100
       optim_type: AdamW
       use_residual: True
-      use_layer_norm: True
+      use_layer_nrm: True
       eval_every: 5
-      self_loop_weight: 0.1
     Actor:
       dim: 128
       lr_factor: .7
@@ -124,11 +141,12 @@ Task_specific:
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.005
-      max_epochs: 50
+      max_epochs: 80
       self_loop_weight: 0.1
       optim_type: AdamW
       use_residual: True
       use_layer_norm: True
+      seed: 1
     Squi:
       dim: 128
       lr_factor: .7
@@ -198,17 +216,17 @@ Task_specific:
       optim_type: AdamW
     Cite:
       dim: 128
-      lr_factor: .5
+      lr_factor: .7
       mlp_layers: 0
       use_residual: True
-      use_layer_norm: False
+      use_layer_norm: True
       wd: 0.00001
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
       max_epochs: 50
-      self_loop_weight: 0.1
-      optim_type: Adam
+      self_loop_weight: 0.2
+      optim_type: AdamW
     Pubm:
       dim: 128
       lr_factor: .7
@@ -222,15 +240,110 @@ Task_specific:
       max_epochs: 80
       self_loop_weight: 0.1
       optim_type: Adam
-  Sort: 
-   Ring:
+  GCN: 
+    lifshiz_comp:
+      dim: 200
+      in_dim: 10
+      out_dim: 200
+      dtype: torch.float64
+  GAT: 
+    lifshiz_comp:
+      dim: 200
+      in_dim: 10
+      out_dim: 200
+      dtype: torch.float64
+  GIN: 
+    lifshiz_comp:
+      dim: 100
+      in_dim: 10
+      out_dim: 100
+      dtype: torch.float64
+  Sort:
+    lifshiz_comp:
+      dim: 200
+      in_dim: 10
+      out_dim: 200
+      dtype: torch.float64
+    Ring:
       batch_size: 5
-      dim: 64
       lr_factor: .7
-      num_samples: 5
-      mlp_layers: 3
-      mlp_activation_hidden: leaky
-      mlp_activation_final: leaky
-      max_epochs: 200
       num_train_samples: 5
       num_test_samples: 5
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 100
+    CrossRing:
+      batch_size: 5
+      lr_factor: .7
+      num_train_samples: 5
+      num_test_samples: 5
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 100
+    CliqueRing:
+      batch_size: 5
+      lr_factor: .7
+      max_epochs: 100
+      num_train_samples: 5
+      num_test_samples: 5
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 100
+    Tree:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+    Cora:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Corn:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Actor:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Cite:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Squi:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Texas:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Wisc:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Cham:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      max_epochs: 500
+      wd: 0.00001
+    Pubm:
+      lr_factor: .7
+      lr: 0.001
+      optim_type: AdamW
+      wd: 0.00001
