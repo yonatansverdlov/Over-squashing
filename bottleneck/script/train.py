@@ -103,11 +103,12 @@ def parse_arguments() -> argparse.Namespace:
         argparse.Namespace: Parsed arguments.
     """
     parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
-    parser.add_argument('--dataset_name', type=str, default='Tree', help='Dataset to use for training.')
+    parser.add_argument('--dataset_name', type=str, default='Cora', help='Dataset to use for training.')
     parser.add_argument('--radius', type=int, default=2, help='Radius value for model depth.')
     parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
-    parser.add_argument('--all', action='store_true', help='Run experiments across all depth values.')
+    parser.add_argument('--all',type = bool, default=False, help='Run experiments across all depth values.')
     parser.add_argument('--model_type', type=str, default='SW', help='Model type for training.')
+    parser.add_argument('--num_seeds', type=int, default=1, help='Model type for training.')
     return parser.parse_args()
 
 
@@ -116,7 +117,7 @@ def main():
     Main function to execute training and testing over various depth values.
     """
     args = parse_arguments()
-    task, depth, repeats, alls, model_type = args.dataset_name, args.radius, args.repeat, args.all, args.model_type
+    task, depth, repeats, alls, model_type, num_seeds = args.dataset_name, args.radius, args.repeat, args.all, args.model_type, args.num_seeds
 
     # Set depth range based on task type and arguments
     if alls:
@@ -126,12 +127,13 @@ def main():
 
     depth_accuracies = []
     seed_accs = []
-    num_seeds = 1
+    test_accs = []
     for current_depth in range(first, end):
+        # Config.
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
-
         # Repeat training to compute average accuracy
         for seed in range(num_seeds):
+            test_accs = []
             test_acc_avg = 0.0
             for repeat_idx in range(repeats):
                 seed = args.seed
@@ -144,6 +146,7 @@ def main():
                 args.split_id = repeat_idx
                 test_acc = train_graphs(args=args, task_specific=task_specific, task_id=repeat_idx, seed=seed)
                 test_acc_avg += test_acc / repeats
+                test_accs.append(test_acc)
             seed_accs.append(test_acc_avg)
 
         depth_accuracies.append(test_acc_avg)
@@ -151,6 +154,8 @@ def main():
     # Display results
     seed_accs = torch.tensor(seed_accs)
     print(seed_accs.max(),seed_accs.argmax())
+    print(args)
+    print(test_accs)
     for idx, acc in enumerate(depth_accuracies, start=first):
         print(f"With depth {idx}, the accuracy is {acc:.2f}% on the {task} dataset.")
 

@@ -41,7 +41,7 @@ class LightningModel(pl.LightningModule):
         args (EasyDict): Configuration dictionary containing model parameters.
         task_id (int): Task index for multi-task training. Default is 0.
     """
-    def __init__(self, args: EasyDict,model:nn.Module, task_id=0):
+    def __init__(self, args: EasyDict,model:GraphModel, task_id=0):
         super().__init__()
         self.task_id = task_id  # Identifier for the current task in multi-task settings
         self.lr = args.lr  # Learning rate for the optimizer
@@ -51,7 +51,7 @@ class LightningModel(pl.LightningModule):
         self.task_type = args.task_type  # Task type, affecting dataset and model structure
         self.is_mutag = self.task_type in ['MUTAG','PROTEIN']
         # Determine if the task is on a single-graph dataset
-        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squir', 
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
                                       'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN', 'lifshiz_comp'}
         self.need_continuous_features = self.task_type in self.single_graph_datasets
         # Initialize the graph model based on the given configuration

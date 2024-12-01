@@ -34,10 +34,10 @@ class GraphModel(nn.Module):
         self.h_dim = args.dim
         self.out_dim = args.out_dim
         self.task_type = args.task_type
-        
+
         # Dataset-specific configuration
-        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squir', 
-                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN', 'lifshiz_comp'}
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp'}
         self.need_continuous_features = self.task_type in self.single_graph_datasets
         self.global_task = self.task_type in {'MUTAG'}
         self.need_edge_features = self.task_type in {'MUTAG'}
@@ -53,8 +53,6 @@ class GraphModel(nn.Module):
             nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
             if self.need_encode_value else None
         )
-        if self.need_edge_features:
-            self.embed_edge = nn.Linear(4, self.h_dim, dtype=dtype)
 
         # Model layers and normalization
         self.layers = nn.ModuleList([
@@ -68,8 +66,11 @@ class GraphModel(nn.Module):
         
         # Output layer setup
         self.out_layer = nn.Linear(self.h_dim, self.out_dim)
-        edgefeat_dim = args.edgefeat_dim
         if self.global_task:
+            # Embed edges.
+            edgefeat_dim = args.edgefeat_dim
+            self.embed_edge = nn.Linear(args.num_edge_features, self.h_dim, dtype=dtype)
+            # ReadOut.
             args.edgefeat_dim = 0
             self.out_layer = FSW_readout(
                 in_channels=self.h_dim,

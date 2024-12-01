@@ -218,7 +218,7 @@ class CliqueRing(RadiusProblemGraphs):
 
         # Initialize node features with 1, setting the last node to the target label
         x = torch.ones(nodes, dtype=torch.int)
-
+        x[nodes - 1] = target_label
         # Construct edges for a clique in the first half
         clique_size = nodes // 2
         edge_index = [[i, j] for i in range(clique_size) for j in range(i + 1, clique_size)]

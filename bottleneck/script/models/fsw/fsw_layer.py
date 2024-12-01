@@ -1,18 +1,12 @@
 import numpy as np
 
 import torch
-import torch_geometric as pyg
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree
-from torch_geometric.graphgym import cfg
-import torch_geometric.graphgym.register as register
-from torch_geometric.graphgym.register import register_layer, register_pooling
+import torch.nn as nn
 import sys
 import os
 import importlib.util
 
-import type_enforced # Note: A runtime error in this line implies that that some function below is given an input arguemnt of the wrong type
-from typing import Dict, Any
+from typing import Dict
 import inspect
 
 #TODO: Check if this path update is necessary
@@ -75,8 +69,7 @@ def return_act(act: str):
 # - If the function to be learned is known to be invariant to vertex degrees, set 
 #   encode_vertex_degrees=False.
 
-@type_enforced.Enforcer(enabled=True)
-class FSW_conv(MessagePassing):
+class FSW_conv(nn.Module):
     # in_channels:    dimension of input vertex features
     #
     # out_channels:   dimension of output vertex features
@@ -185,29 +178,27 @@ class FSW_conv(MessagePassing):
                  in_channels, out_channels, edgefeat_dim=0,
                  embed_dim=None, learnable_embedding=True,
                  encode_vertex_degrees=True, vertex_degree_encoding_function='identity', 
-                 vertex_degree_encoding_scale=1.0, learnable_vertex_degree_encoding_scale=False, homog_degree_encoding=False, 
+                 vertex_degree_encoding_scale=1.0, learnable_vertex_degree_encoding_scale=False,
+                 homog_degree_encoding=False, 
                  vertex_degree_pad_thresh = 1.0,
                  concat_self = True,
                  bias=True,
-                 mlp_layers=1, mlp_hidden_dim=None,
+                 mlp_layers=0, mlp_hidden_dim=None,
                  mlp_activation_final = torch.nn.LeakyReLU(negative_slope=0.2), 
                  mlp_activation_hidden = torch.nn.LeakyReLU(negative_slope=0.2), 
                  mlp_init = None,
-                 batchNorm_final = False, batchNorm_hidden = False,
+                 batchNorm_final = True, batchNorm_hidden = True,
                  dropout_final = 0, dropout_hidden = 0,
                  self_loop_weight = 0.0, edge_weighting = 'unit',
                  device=None, dtype=torch.float32,
-                 config : dict | None = None):
+                 config : Dict | None = None):
         
-        super().__init__(aggr=None)
+        super().__init__()
 
         config = config if config is not None else {}
 
         # Get the function's input argument names
         # This is in case the function is not a method:
-        #frame = inspect.currentframe()
-        #function_name = frame.f_code.co_name
-        #func = globals()[function_name]
         func = getattr(self.__class__, '__init__', None)
         arg_names = { param.name for param in inspect.signature(func).parameters.values() }
         arg_names = arg_names.difference({'config','self'})
@@ -342,8 +333,6 @@ class FSW_conv(MessagePassing):
         dtype = dtype if dtype is not None else self.fsw_embed.get_dtype()
         self.to(device=device, dtype=dtype)
 
-
-
     def forward(self, vertex_features, edge_index, edge_features=None):
         # vertex_features has shape [num_vertices, in_channels]
         # edge_index has shape [2, num_edges]
@@ -385,17 +374,6 @@ class FSW_conv(MessagePassing):
             out = self.bn_final(out)
 
         return out
-
-
-    def aggregate(self, inputs, index):
-        return
-
-    def message(self, x_j):
-        return
-
-    def update(self, aggr_out):
-        return
-
 
     def edge_index_to_adj(edge_index, edge_features, num_vertices, edgefeat_dim, dtype, self_loop_weight=0, edge_weighting='unit'):
         num_edges = edge_index.shape[1]
@@ -529,10 +507,12 @@ class FSW_readout(FSW_conv):
 
         return out
     
-
 def is_monotone_increasing(tensor):
     # Compute the difference between consecutive elements
     diffs = tensor[1:] - tensor[:-1]
     
     # Check if all differences are greater than or equal to 0
     return torch.all(diffs >= 0)
+
+
+

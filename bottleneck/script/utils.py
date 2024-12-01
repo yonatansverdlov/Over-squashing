@@ -82,7 +82,7 @@ def get_args(depth: int, gnn_type: str, task_type: str):
         config = EasyDict(yaml.safe_load(f))
 
     # Update with general and task-specific configurations
-    clean_args.update(config['General'])
+    clean_args.update(config['Common'])
     clean_args.update(config['Task_specific'][gnn_type][task_type])
 
     # Modify batch size and gradients for Tree task
@@ -192,6 +192,7 @@ def return_datasets(args):
     elif args.task_type in TUDatasets:
         args.in_dim = dataset.num_node_features
         args.out_dim = dataset.num_classes
+        args.num_edge_features = dataset.num_edge_features
         train_dataset, test_dataset = split_dataset_for_10_fold(dataset=dataset, fold_id=args.split_id)
         return train_dataset, test_dataset, test_dataset
     else:
