@@ -52,7 +52,7 @@ class LightningModel(pl.LightningModule):
         self.is_mutag = self.task_type in ['MUTAG','PROTEIN']
         # Determine if the task is on a single-graph dataset
         self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
-                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN', 'lifshiz_comp'}
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN'}
         self.need_continuous_features = self.task_type in self.single_graph_datasets
         # Initialize the graph model based on the given configuration
         self.model = model
