@@ -1,72 +1,34 @@
 import argparse
-import os
-import random
-import numpy as np
-import torch
 from easydict import EasyDict
-from pytorch_lightning import Trainer, seed_everything, callbacks
 from torch_geometric.loader import DataLoader
-
-from models.lightning_model import LightningModel, StopAtValAccCallback
+from models.lightning_model import LightningModel
 from models.graph_model import GraphModel
-from utils import get_args, create_model_dir, return_datasets
+from utils import get_args, return_datasets, average_oversmoothing_metric, create_trainer, worker_init_fn, MetricAggregationCallback, fix_seed
 
-
-def worker_init_fn(seed: int):
+def parse_arguments() -> argparse.Namespace:
     """
-    Initializes random seeds for reproducibility in data loading workers.
-
-    Args:
-        seed (int): The seed value to ensure consistent data shuffling.
-    """
-    np.random.seed(seed)
-    random.seed(seed)
-
-
-def train_graphs(args: EasyDict, task_specific: str, task_id: int, seed: int) -> float:
-    """
-    Train, validate, and test a graph model on the specified dataset.
-
-    Args:
-        args (EasyDict): Configuration containing hyperparameters and dataset details.
-        task_specific (str): Task-specific identifier used for creating model directories.
-        task_id (int): Unique identifier for multi-task settings.
-        seed (int): Random seed for reproducibility.
+    Parse command-line arguments for dataset training configuration.
 
     Returns:
-        float: Test accuracy achieved by the model.
+        argparse.Namespace: Parsed arguments.
     """
-    # Set up directories and callbacks
-    model_dir, path_to_project = create_model_dir(args, task_specific, seed=seed)
-    checkpoint_callback = callbacks.ModelCheckpoint(
-        dirpath=model_dir,
-        filename='{epoch}-f{val_acc:.5f}',
-        save_top_k=10,
-        monitor='val_acc',
-        save_last=True,
-        mode='max'
-    )
+    parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
+    parser.add_argument('--task_type', type=str, default='Ring', help='Dataset to use for training.')
+    parser.add_argument('--min_radius', type=int, default=2, help='Radius value for model depth.')
+    parser.add_argument('--max_radius', type=int, default=3, help='Radius value for model depth.')
+    parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
+    parser.add_argument('--model_type', type=str, default='SW', help='Model type for training.')
+    return parser.parse_args()
 
-    # Additional stopping callback for specific task types
-    stop_callback = StopAtValAccCallback(target_acc=1.0) if args.task_type in ['Tree', 'Ring', 'CrossRing', 'CliqueRing'] else None
-    callbacks_list = [callback for callback in [checkpoint_callback, stop_callback] if callback]
-
-    # Trainer setup
-    trainer = Trainer(
-        max_epochs=args.max_epochs,
-        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
-        enable_progress_bar=True,
-        check_val_every_n_epoch=args.eval_every,
-        callbacks=callbacks_list,
-        default_root_dir=f'{path_to_project}/data/lightning_logs'
-    )
-
+def train_graphs(args: EasyDict, task_specific: str, seed: int, metric_callback,measure_oversmoothing = False) -> float:
+    trainer, checkpoint_callback = create_trainer(args, task_specific, seed, metric_callback)
+    energy = 0.0
     # Load datasets
     X_train, X_test, X_val = return_datasets(args=args)
 
     # Initialize the graph model and Lightning wrapper
     base_model = GraphModel(args=args)
-    model = LightningModel(args=args, task_id=task_id, model=base_model)
+    model = LightningModel(args=args, model=base_model)
 
     # Prepare data loaders
     train_loader = DataLoader(
@@ -79,7 +41,6 @@ def train_graphs(args: EasyDict, task_specific: str, task_id: int, seed: int) ->
     test_loader = DataLoader(
         X_test, batch_size=args.val_batch_size, shuffle=False, pin_memory=True, num_workers=args.loader_workers
     )
-
     # Train the model
     print('Starting training...')
     trainer.fit(model, train_loader, val_loader)
@@ -88,77 +49,38 @@ def train_graphs(args: EasyDict, task_specific: str, task_id: int, seed: int) ->
     if not args.take_last:
         print("Loading best model checkpoint...")
         best_checkpoint_path = checkpoint_callback.best_model_path
-        model = LightningModel.load_from_checkpoint(best_checkpoint_path, args=args, task_id=task_id, model=base_model)
-
+        model = LightningModel.load_from_checkpoint(best_checkpoint_path, args=args, model=base_model)
     # Evaluate on the test set
     test_results = trainer.test(model, test_loader, verbose=False)
-    return test_results[0]['test_acc'] * 100
+    test_acc_model = test_results[0]['test_acc'] * 100
+    print(f"Test accuracy: {test_acc_model:.2f}%")
+    if measure_oversmoothing:
+        val_loader = DataLoader(
+        X_val, batch_size=1, shuffle=False, pin_memory=True, num_workers=args.loader_workers
+                    )
+        energy = average_oversmoothing_metric(model, val_loader)
+        print(f"The MAD energy {energy:.4f}")
 
-
-def parse_arguments() -> argparse.Namespace:
-    """
-    Parse command-line arguments for dataset training configuration.
-
-    Returns:
-        argparse.Namespace: Parsed arguments.
-    """
-    parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
-    parser.add_argument('--dataset_name', type=str, default='Cora', help='Dataset to use for training.')
-    parser.add_argument('--radius', type=int, default=2, help='Radius value for model depth.')
-    parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
-    parser.add_argument('--all',type = bool, default=False, help='Run experiments across all depth values.')
-    parser.add_argument('--model_type', type=str, default='SW', help='Model type for training.')
-    parser.add_argument('--num_seeds', type=int, default=1, help='Model type for training.')
-    return parser.parse_args()
-
+    return test_acc_model, energy
 
 def main():
-    """
-    Main function to execute training and testing over various depth values.
-    """
     args = parse_arguments()
-    task, depth, repeats, alls, model_type, num_seeds = args.dataset_name, args.radius, args.repeat, args.all, args.model_type, args.num_seeds
-
-    # Set depth range based on task type and arguments
-    if alls:
-        first, end = (2, 16) if task in ['Ring', 'CliqueRing', 'CrossRing'] else (2, 9)
-    else:
-        first, end = depth, depth + 1
-
-    depth_accuracies = []
-    seed_accs = []
-    test_accs = []
-    for current_depth in range(first, end):
-        # Config.
+    task, min_radius, max_radius, repeats, model_type = args.task_type, args.min_radius,args.max_radius, args.repeat, args.model_type
+    accuracy_results = {}
+    # Set up depth range
+    for current_depth in range(min_radius, max_radius):
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
-        # Repeat training to compute average accuracy
-        for seed in range(num_seeds):
-            test_accs = []
-            test_acc_avg = 0.0
-            for repeat_idx in range(repeats):
-                seed = args.seed
-                os.environ["PYTHONHASHSEED"] = str(seed)
-                torch.manual_seed(seed)
-                torch.cuda.manual_seed(seed)
-                random.seed(seed)
-                np.random.seed(seed)
-                seed_everything(seed, workers=True)
-                args.split_id = repeat_idx
-                test_acc = train_graphs(args=args, task_specific=task_specific, task_id=repeat_idx, seed=seed)
-                test_acc_avg += test_acc / repeats
-                test_accs.append(test_acc)
-            seed_accs.append(test_acc_avg)
-
-        depth_accuracies.append(test_acc_avg)
-
-    # Display results
-    seed_accs = torch.tensor(seed_accs)
-    print(seed_accs.max(),seed_accs.argmax())
-    print(args)
-    print(test_accs)
-    for idx, acc in enumerate(depth_accuracies, start=first):
-        print(f"With depth {idx}, the accuracy is {acc:.2f}% on the {task} dataset.")
-
+        metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
+        seed = args.seed
+        for repeat_idx in range(repeats):
+            fix_seed(seed)  
+            args.split_id = repeat_idx
+            train_graphs(args, task_specific, seed, metric_callback)
+        best_mean, best_std = metric_callback.get_best_epoch()
+        accuracy_results[current_depth] = (best_mean, best_std)
+    print("\nFinal Accuracy Results for All Radii:")
+    for radius, (mean_acc,std_acc) in accuracy_results.items():
+        print(f"On task {task}, With Radius {radius} the accuracy is {mean_acc:.2f}%, with std {std_acc:.2f}%")
 
 if __name__ == "__main__":
     main()

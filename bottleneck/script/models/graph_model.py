@@ -1,18 +1,10 @@
-import torch
 import torch.nn as nn
 from torch_geometric.data import Data
 from easydict import EasyDict
 from utils import get_layer
 from fsw.fsw_layer import FSW_readout
-
-# Mapping for data types
-dtype_mapping = {
-    "torch.float32": torch.float32,
-    "torch.float64": torch.float64,
-    "torch.float16": torch.float16,
-    "torch.int32": torch.int32
-    # Add more mappings as needed
-}
+from torch_geometric.nn import global_mean_pool
+import torch
 
 class GraphModel(nn.Module):
     """
@@ -25,26 +17,25 @@ class GraphModel(nn.Module):
     """
     def __init__(self, args: EasyDict):
         super().__init__()
-        dtype = dtype_mapping[args.dtype]
-        
+        dtype = getattr(torch, args.dtype)
         # Model configuration
         self.use_layer_norm = args.use_layer_norm
         self.use_residual = args.use_residual
-        self.num_layers = args.depth
+        self.num_layers = args.depth 
         self.h_dim = args.dim
         self.out_dim = args.out_dim
         self.task_type = args.task_type
+        self.gnn_type = args.gnn_type
 
         # Dataset-specific configuration
         self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
-                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp'}
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp','Protein','PTC','NCI'}
         self.need_continuous_features = self.task_type in self.single_graph_datasets
-        self.global_task = self.task_type in {'MUTAG'}
-        self.need_edge_features = self.task_type in {'MUTAG'}
+        self.global_task = self.task_type in {'MUTAG','Protein','PTC','NCI'}        
+        self.need_edge_features = self.task_type in {'MUTAG','PTC',}
         self.need_encode_value = self.task_type in {'Tree'}
-        
-        # Embedding initialization
-        self.embed_label = (
+        # Embedding initialization          
+        self.embed_label = (                  
             nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
             if self.need_continuous_features else 
             nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
@@ -65,21 +56,25 @@ class GraphModel(nn.Module):
         )
         
         # Output layer setup
-        self.out_layer = nn.Linear(self.h_dim, self.out_dim)
         if self.global_task:
             # Embed edges.
             edgefeat_dim = args.edgefeat_dim
             self.embed_edge = nn.Linear(args.num_edge_features, self.h_dim, dtype=dtype)
             # ReadOut.
             args.edgefeat_dim = 0
-            self.out_layer = FSW_readout(
-                in_channels=self.h_dim,
-                out_channels=args.out_dim,
-                config=dict(args),
-                concat_self=False,
-                dtype=dtype
-            )
+            if self.gnn_type == 'SW':   
+                self.out_layer = FSW_readout(
+                    in_channels=self.h_dim,
+                    out_channels=args.out_dim,
+                    config=dict(args),
+                    concat_self=False,
+                    dtype=dtype
+                )
+            else:
+                self.out_layer = global_mean_pool
             args.edgefeat_dim = edgefeat_dim
+        else:
+            self.out_layer = nn.Linear(self.h_dim, self.out_dim)
         
         # Initialize model parameters
         self.init_model()
@@ -89,11 +84,22 @@ class GraphModel(nn.Module):
         Initialize model parameters using Xavier (Glorot) uniform initialization.
         Ensures stable gradient flow at the start of training.
         """
+        
         if not self.global_task:
             nn.init.xavier_uniform_(self.out_layer.weight)
         if self.need_edge_features:
             nn.init.xavier_uniform_(self.embed_edge.weight)
 
+    def turn_off_body(self):
+        """
+        Turn off the body of the model by setting all layers to eval mode.
+        Useful for testing the output layer in isolation.     
+        """ 
+        for param in self.parameters():
+            param.requires_grad = False
+        for param in self.out_layer.parameters():
+            param.requires_grad = True  
+            
     def forward(self, data: Data):
         """
         Forward pass through the graph model.

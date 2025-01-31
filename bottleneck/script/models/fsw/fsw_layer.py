@@ -29,30 +29,6 @@ minimize_mutual_coherence = fsw_embedding.minimize_mutual_coherence
 ag = fsw_embedding.ag
 sp = fsw_embedding.sp
 
-
-dtype_mapping = {
-    "torch.float32": torch.float32,
-    "torch.float64": torch.float64,
-    "torch.float16": torch.float16,
-    "torch.int32": torch.int32,
-    # Add more mappings as needed
-}
-
-
-def return_act(act: str):
-    if act == 'relu':
-        return torch.nn.ReLU()
-    if act == 'lrelu':
-        return torch.nn.LeakyReLU(0.1)
-    if act == 'tanh':
-        return torch.nn.Tanh()
-    if act == 'silu':
-        return torch.nn.SiLU()
-    if act == 'gelu':
-        return torch.nn.GELU()
-    else:
-        raise NotImplemented
-
 # Now you can use FSW_embedding, minimize_mutual_coherence, ag, and sp directly
 
 # Release notes:
@@ -232,7 +208,7 @@ class FSW_conv(nn.Module):
                     device, dtype):
         assert edge_weighting in {'unit', 'gcn'}, 'invalid value passed in argument <edge_weighting>'
         assert vertex_degree_encoding_function in {'identity', 'sqrt', 'log'}, 'invalid value passed in argument <vertex_degree_encoding_function>'
-        dtype = dtype_mapping[dtype]
+        dtype = getattr(torch, dtype)
         if mlp_hidden_dim is None:
             mlp_hidden_dim = max(in_channels, out_channels)
 
@@ -275,8 +251,8 @@ class FSW_conv(nn.Module):
         else:
             self.bn_final = None
             mlp_modules = []
-            mlp_activation_final = return_act(mlp_activation_final)
-            mlp_activation_hidden = return_act(mlp_activation_hidden)
+            mlp_activation_final = getattr(nn, mlp_activation_final, None)
+            mlp_activation_hidden = getattr(nn, mlp_activation_hidden, None)
             for i in range(mlp_layers):
                 in_curr = mlp_input_dim if i == 0 else mlp_hidden_dim
                 out_curr = out_channels if i == mlp_layers-1 else mlp_hidden_dim

@@ -17,7 +17,7 @@ Common:
   optim_type: Adam
   seed: 0
   take_last: False
-  dtype: torch.float32
+  dtype: float32
   edgefeat_dim: 0
 Task_specific:
   SW:
@@ -29,7 +29,9 @@ Task_specific:
       max_epochs: 200
       num_train_samples: 5
       num_test_samples: 5
-    CliqueRing:
+      use_residual: False
+      use_layer_norm: False
+    CliquePath:
       batch_size: 5
       max_epochs: 200
       mlp_layers: 3
@@ -72,13 +74,15 @@ Task_specific:
       optim_type: AdamW
       eval_every: 5
       mlp_init: xavier_normal
+      use_residual: False
+      use_layer_norm: False
     MUTAG:
       dim: 128
       edgefeat_dim: 128
       lr_factor: .9
       mlp_layers: 3
       batch_size: 16
-      wd: 0.0001
+      wd: 0.00005
       dropout_final: .1
       dropout_hidden: .1
       lr: 0.001
@@ -87,7 +91,25 @@ Task_specific:
       use_residual: True
       use_layer_norm: True
       eval_every: 5
-      seed: 15
+      seed: 4
+      take_last: False
+    Protein:
+      dim: 128
+      edgefeat_dim: 0
+      lr_factor: .9
+      mlp_layers: 3                  
+      batch_size: 32
+      wd: 0.00005
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 0
+      take_last: False
     Actor:
       dim: 128
       mlp_layers: 3
@@ -182,3 +204,164 @@ Task_specific:
       eval_every: 5
       mlp_init: xavier_normal
       seed: 3
+  GAT: 
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
+    Ring:
+      dim: 64
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      num_train_samples: 5
+      num_test_samples: 5
+  GIN: 
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
+    Ring:
+      dim: 64
+      lr_factor: .7
+      mlp_layers: 3
+      batch_size: 5
+      wd: 0.0
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      num_train_samples: 5
+      num_test_samples: 5
+
+  GCN: 
+    Ring:
+      dim: 64
+      lr_factor: .7
+      mlp_layers: 3
+      batch_size: 5
+      wd: 0.0
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      num_train_samples: 5
+      num_test_samples: 5
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
+  GGNN: 
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
+  SAGE: 
+    Ring:
+      dim: 64
+      lr_factor: .7
+      mlp_layers: 3
+      batch_size: 5
+      wd: 0.0
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      num_train_samples: 5
+      num_test_samples: 5
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
+  Transformer: 
+      Ring:
+        dim: 64
+        lr_factor: .9
+        mlp_layers: 3
+        batch_size: 16
+        lr: 0.001
+        max_epochs: 80
+        optim_type: AdamW
+        use_residual: True
+        use_layer_norm: True
+        eval_every: 5
+        num_train_samples: 5
+        num_test_samples: 5

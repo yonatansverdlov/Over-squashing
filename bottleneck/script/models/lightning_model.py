@@ -1,39 +1,12 @@
-import pytorch_lightning as pl
 import torch
 from torch import Tensor
 from easydict import EasyDict
 from models.graph_model import GraphModel
-import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
+import lightning
 
-class StopAtValAccCallback(pl.Callback):
-    """
-    Callback for early stopping when validation accuracy reaches a target value.
-    
-    Args:
-        target_acc (float): Accuracy threshold for stopping training early.
-    """
-    def __init__(self, target_acc=1.0):
-        super().__init__()
-        self.target_acc = target_acc
-
-    def on_validation_epoch_end(self, trainer, _):
-        """
-        Checks validation accuracy at the end of each epoch, stopping training if the target is met.
-        
-        Args:
-            trainer (Trainer): PyTorch Lightning trainer instance managing training.
-        """
-        val_acc = trainer.callback_metrics.get('val_acc')
-        if val_acc is not None and val_acc >= self.target_acc:
-            trainer.should_stop = True
-            print(f"Stopping training as `val_acc` reached {val_acc * 100:.2f}%")
-        else:
-            print(f"Current validation accuracy: {val_acc * 100:.2f}%")
-
-
-class LightningModel(pl.LightningModule):
+class LightningModel(lightning.LightningModule):
     """
     PyTorch Lightning Module for training and evaluating a graph neural network model on various datasets.
     
@@ -41,18 +14,18 @@ class LightningModel(pl.LightningModule):
         args (EasyDict): Configuration dictionary containing model parameters.
         task_id (int): Task index for multi-task training. Default is 0.
     """
-    def __init__(self, args: EasyDict,model:GraphModel, task_id=0):
+    def __init__(self, args: EasyDict,model:GraphModel):
         super().__init__()
-        self.task_id = task_id  # Identifier for the current task in multi-task settings
+        self.task_id = args.split_id  # Identifier for the current task in multi-task settings
         self.lr = args.lr  # Learning rate for the optimizer
         self.lr_factor = args.lr_factor  # Factor by which the learning rate decreases on plateau
         self.optim_type = args.optim_type  # Optimizer type (e.g., 'Adam' or 'AdamW')
         self.weight_decay = args.wd  # Weight decay for regularization
         self.task_type = args.task_type  # Task type, affecting dataset and model structure
-        self.is_mutag = self.task_type in ['MUTAG','PROTEIN']
+        self.is_mutag = self.task_type in ['MUTAG','Protein','PTC','NCI']
         # Determine if the task is on a single-graph dataset
         self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
-                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'PROTEIN'}
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'Protein'}
         self.need_continuous_features = self.task_type in self.single_graph_datasets
         # Initialize the graph model based on the given configuration
         self.model = model
@@ -168,7 +141,7 @@ class LightningModel(pl.LightningModule):
         self.log("test_loss", loss, batch_size=label.size(0))
         self.log('test_acc', acc, batch_size=label.size(0))
         return loss
-
+                                        
     def configure_optimizers(self):
         """
         Sets up the optimizer and learning rate scheduler.

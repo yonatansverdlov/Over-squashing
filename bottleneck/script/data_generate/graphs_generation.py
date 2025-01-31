@@ -23,7 +23,7 @@ class RadiusProblemGraphs(object):
     def generate_sample(self):
         raise NotImplementedError
     
-    def generate_dataset(self,num_samples):
+    def generate_dataset(self,num_samples,index:int=0):
         """
         Generate a dataset of lollipop transfer graphs.
         Returns:
@@ -45,8 +45,7 @@ class RadiusProblemGraphs(object):
     def generate_data(self):
         self.args.in_dim, self.args.out_dim = self.get_dims()
         X_train = self.generate_dataset(num_samples=self.num_train_samples)
-        X_test = self.generate_dataset(num_samples=self.num_test_samples)
-        return X_train, X_test, X_test
+        return X_train, X_train, X_train
     
     def get_dims(self):
         return self.num_classes, self.num_classes
@@ -175,8 +174,8 @@ class RingDataset(RadiusProblemGraphs):
         assert nodes > 1, "Minimum of two nodes required"
 
         # Initialize feature matrix and set target node feature
-        x = torch.ones(nodes, dtype=torch.int)
-        x[nodes // 2] = target_label  # Target node feature
+        x = torch.ones(nodes, dtype=torch.long)
+        x[nodes // 2] = target_label  # Source node feature
         # Initialize edges with ring structure
         edge_index = [[i, (i + 1) % nodes] for i in range(nodes)]
         edge_index += [[(i + 1) % nodes, i] for i in range(nodes)]
@@ -192,14 +191,13 @@ class RingDataset(RadiusProblemGraphs):
 
         # Create mask for target node
         mask = torch.zeros(nodes, dtype=torch.bool)
-        mask[0] = 1  # Only the source node (index 0) is marked true
-
+        mask[0] = 1  # Only the target node (index 0) is marked true
         # Return the data object
         return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label, train_mask=mask, test_mask=mask)
 
-class CliqueRing(RadiusProblemGraphs):
+class CliquePath(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, classes:int=5):
-        super(CliqueRing, self).__init__(args=args,num_classes = classes,add_crosses = False)
+        super(CliquePath, self).__init__(args=args,num_classes = classes,add_crosses = False)
         self.depth-=1
 
     def generate_sample(self, nodes: int, target_label: int, _):
