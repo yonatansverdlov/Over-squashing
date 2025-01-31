@@ -37,7 +37,7 @@ To set up the project environment and install all necessary dependencies, follow
 
 ## Usage
 
-We present three types of experiments: Over-squashing experiments, Transductive learning, MolHIV and LRGB.
+We present three types of experiments: Over-squashing experiments, Transductive learning, Graph classification, and LRGB.
 ## Graph classification tasks
 First run
    ```bash
