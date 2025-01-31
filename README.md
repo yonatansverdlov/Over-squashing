@@ -44,6 +44,7 @@ First run
    cd bottleneck/script
    ```
 Select a `data_type` from the following nine options: **Protein,MUTAG**.
+
 Run:
    ```bash
    python train.py --dataset_name data_type --repeat 10 -min_radius 3 --max_radius 4
