@@ -43,7 +43,7 @@ First run
    ```bash
    cd bottleneck/script
    ```
-Select a `data_type` from the following nine options: **Protein,MUTAG**.
+Select a `data_type` from the following nine options: **Protein, MUTAG**.
 
 Run:
    ```bash
