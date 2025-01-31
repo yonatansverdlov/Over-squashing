@@ -38,22 +38,31 @@ To set up the project environment and install all necessary dependencies, follow
 ## Usage
 
 We present three types of experiments: Over-squashing experiments, Transductive learning, MolHIV and LRGB.
-   
+## Graph classification tasks
+First run
+   ```bash
+   cd bottleneck/script
+   ```
+Select a `data_type` from the following nine options: **Protein,MUTAG**.
+Run:
+   ```bash
+   python train.py --dataset_name data_type --repeat 10 -min_radius 3 --max_radius 4
+   ```
 ## Over-squashing experiments
 First run
    ```bash
    cd bottleneck/script
    ```
-Choose data_type, one of the four options: Ring, Tree, CrossRing, CliqueRing. 
+Choose data_type, one of the four options: Ring, Tree, CrossRing, CliquePath. 
 Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 15.
-
-If all radios are needed, please run
+For non-Tree
+Run
    ```bash
-   python train.py --dataset_name data_type --all True
+   python train.py --dataset_name data_type --min_radius 2 --max_radius 16
    ```
-Otherwise, run
+For Tree run
    ```bash
-   python train.py --dataset_name data_type --radius radius.
+   python train.py --dataset_name data_type --min_radius 2 --max_radius 9
    ```
 ---
 ## Transductive Learning
@@ -62,9 +71,9 @@ First run
    cd bottleneck/script
    ```
 Select a `data_type` from the following nine options: **Cora, Cite, Pubm, Cham, Squi, Actor, Corn, Texas, Wisc**.
-Next, choose the number of different seeds (between 1 and 10) indicated by `repeat`, and run:
+Run:
    ```bash
-   python train.py --dataset_name data_type --repeat repeat
+   python train.py --dataset_name data_type --repeat 10 
    ```
 ## LRGB & MolHIV
 1. Create a new Conda environment and activate it:
