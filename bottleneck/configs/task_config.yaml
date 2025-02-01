@@ -63,6 +63,8 @@ Task_specific:
       mlp_activation_final: relu
       num_train_samples: 32000
       num_test_samples: 1000
+      use_residual: False
+      use_layer_norm: False
     Cora:
       dim: 128
       mlp_layers: 3

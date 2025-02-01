@@ -29,11 +29,11 @@ For `Tree`, choose a radius between **2 and 8**, for others, between **2 and 15*
 
 For `Tree` experiments:
 ```bash
-python train.py --dataset_name data_type --min_radius 2 --max_radius 9
+python train.py --task_typee Tree --min_radius 2 --max_radius 9
 ```
 For `Ring`, `CrossRing`, or `CliquePath`:
 ```bash
-python train.py --dataset_name data_type --min_radius 2 --max_radius 16
+python train.py --task_typee data_type --min_radius 2 --max_radius 16
 ```
 
 ### Transductive Learning
@@ -44,13 +44,13 @@ cd bottleneck
 Choose a `data_type` from the following options: **Cora, Cite, Pubm, Cham, Squi, Actor, Corn, Texas, Wisc.**  
 Set `repeat` to a value between **1 and 10** to determine the number of different seeds:
 ```bash
-python train.py --dataset_name data_type --repeat repeat
+python train.py --task_typee data_type --repeat repeat
 ```
 
 ### Graph Classification (Mutag & Protein)
 For `MUTAG` and `Protein` datasets, specify the number of different seeds (`repeat`) and run:
 ```bash
-python train.py --dataset_name data_type --repeat repeat --min_radius 3 --max_radius 4
+python train.py --task_typee data_type --repeat repeat --min_radius 3 --max_radius 4
 ```
 For LRGB and MolHIV:
 ```bash

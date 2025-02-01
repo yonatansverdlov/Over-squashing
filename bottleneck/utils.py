@@ -17,7 +17,7 @@ from lightning.pytorch.trainer import Trainer
 import random                                                                                                                                                                
 from lightning.pytorch.callbacks import ModelCheckpoint
 import os
-from pytorch_lightning import seed_everything
+from lightning.pytorch import seed_everything
 
 class MetricAggregationCallback(Callback):
     def __init__(self, eval_every=5):

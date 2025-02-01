@@ -5,12 +5,12 @@ channels:
 dependencies:
   - python=3.11
   - pip
-  - torch
-  - torchvision
-  - torchaudio
-  - pytorch-lightning
   - easydict
-  - type_enforced
   - scikit-learn
   - pip:
-      - torch_geometric
+      - torch==2.0.1
+      - torchvision==0.15.2
+      - torchaudio==2.0.2
+      - torch_geometric==2.3.0
+      - lightning==2.0.6
+      - type_enforced==1.9.0
