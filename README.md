@@ -17,7 +17,7 @@ conda activate oversquash
 
 ## Usage
 
-This project includes three types of experiments: **Over-Squashing Experiments, Transductive Learning, and Graph Classification (MolHIV & LRGB).**
+This project includes three types of experiments: **Over-Squashing Experiments, Transductive Learning, Graphh Classification, and MolHIV & LRGB.**
 
 ### Over-Squashing Experiments
 Navigate to the bottleneck directory:
