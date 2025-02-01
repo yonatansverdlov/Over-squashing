@@ -49,7 +49,7 @@ class GraphModel(nn.Module):
             if self.dataset_config["encode_value"]
             else None
         )
-
+        self.need_encode_value = self.dataset_config["encode_value"]
         # Graph layers and normalization
         self.layers = nn.ModuleList([
             get_layer(in_dim=self.h_dim, out_dim=self.h_dim, args=args)
@@ -66,7 +66,7 @@ class GraphModel(nn.Module):
             if self.dataset_config["edge_features"]
             else None
         )
-
+        self.need_edge_features = self.dataset_config["edge_features"]
         # Output layer setup
         if self.dataset_config["global_task"]:
             edgefeat_dim = args.edgefeat_dim
@@ -108,37 +108,41 @@ class GraphModel(nn.Module):
             else self.out_layer(x)[data.root_mask]  # Filter predictions for root nodes
         )
 
+
     def compute_node_embedding(self, data: Data):
         """
         Compute node embeddings using the embedding layers, graph layers, activations,
         residual connections, and optional layer normalization.
 
         Args:
-            data (Data): A Torch Geometric `Data` object containing `x`, `edge_index`, and optionally `edge_attr`.
+            data (Data): A Torch Geometric Data object containing x, edge_index, and optionally edge_attr.
 
         Returns:
-            torch.Tensor: Node embeddings of shape `(num_nodes, h_dim)`.
+            torch.Tensor: Node embeddings of shape (num_nodes, h_dim).
         """
-        x = data.x
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
 
         # Node feature embedding
-        if self.dataset_config["encode_value"]:
+        if self.need_encode_value:
             x = self.embed_label(x[:, 0]) + self.embed_value(x[:, 1])
         else:
             x = self.embed_label(x)
 
-        edge_attr = self.embed_edge(data.edge_attr) if self.embed_edge else None
-
         # Graph layers
         for i, layer in enumerate(self.layers):
-            new_x = layer(x, data.edge_index, edge_attr)
+            new_x = x
+            if self.need_edge_features:
+                edge_attr = self.embed_edge(data.edge_attr)
+            new_x = layer(new_x, edge_index, edge_attr)
 
             # Residual connections
-            x = x + new_x if self.use_residual else new_x
+            if self.use_residual:
+                x = x + new_x
+            else:
+                x = new_x
 
             # Layer normalization
             if self.use_layer_norm:
                 x = self.layer_norms[i](x)
 
         return x
-

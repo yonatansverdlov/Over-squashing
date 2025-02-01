@@ -8,9 +8,11 @@ dependencies:
   - easydict
   - scikit-learn
   - pip:
-      - torch==2.0.1
-      - torchvision==0.15.2
-      - torchaudio==2.0.2
-      - torch_geometric==2.3.0
-      - lightning==2.0.6
-      - type_enforced==1.9.0
+      - numpy==2.2.2
+      - torch==2.6.0
+      - torchvision
+      - torchaudio
+      - torch_geometric
+      - lightning
+      - pytorch-lightning
+      - type_enforced
