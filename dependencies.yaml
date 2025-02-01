@@ -1,0 +1,16 @@
+name: oversquash
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - torch
+  - torchvision
+  - torchaudio
+  - pytorch-lightning
+  - easydict
+  - type_enforced
+  - scikit-learn
+  - pip:
+      - torch_geometric

@@ -2,6 +2,7 @@ import torch_geometric
 import pathlib
 import torch
 import yaml
+from torch_geometric.loader import DataLoader
 from easydict import EasyDict
 from torch import nn
 from torch_geometric.nn import GCNConv, GatedGraphConv, GINConv, GATConv, SAGEConv, TransformerConv
@@ -94,7 +95,6 @@ class TimingCallback(Callback):
         print(f"Average validation time per validation run: {avg_validation_time:.2f} seconds")
         print(f"Average testing time per testing run: {self.total_test_time:.2f} seconds")
 
-
 class StopAtValAccCallback(Callback):
     """
     Callback for early stopping when validation accuracy reaches a target value.
@@ -144,7 +144,6 @@ def split_dataset_for_10_fold(dataset: Dataset, fold_id: int):
 
     return Subset(dataset, train_indices), Subset(dataset, test_indices)
 
-
 def get_layer(args: EasyDict, in_dim: int, out_dim: int):
     """
     Get a GNN layer based on the specified type in args.
@@ -170,7 +169,6 @@ def get_layer(args: EasyDict, in_dim: int, out_dim: int):
         'Transformer': lambda: TransformerConv(in_channels=in_dim, out_channels=out_dim),
     }
     return gnn_layers[args.gnn_type]()
-
 
 def get_args(depth: int, gnn_type: str, task_type: str):
     """
@@ -242,21 +240,20 @@ def compute_energy(data, model):
     return compute_dirichlet_energy(data, embedding)
 
 
-def create_model_dir(args, task_specific, seed: int):
+def create_model_dir(args, task_specific):
     """
     Create a directory for model checkpoints and logs.
 
     Args:
         args (EasyDict): Configuration arguments.
         task_specific (dict): Task-specific settings.
-        seed (int): Random seed for reproducibility.
 
     Returns:
         tuple: Model directory path and project base path.
     """
     model_name = '_'.join([f"{key}_{val}" for key, val in task_specific.items()])
     path_to_project = pathlib.Path(__file__).parent.parent
-    model_dir = path_to_project / f"data/models/{args.task_type}/{args.gnn_type}/Radius_{args.depth}/{seed}/{model_name}"
+    model_dir = path_to_project / f"data/models/{args.task_type}/{args.gnn_type}/Radius_{args.depth}/{model_name}"
     return str(model_dir), str(path_to_project)
 
 def return_datasets(args):
@@ -377,61 +374,12 @@ def average_oversmoothing_metric(model, data_loader):
 
     return average_metric
 
-def compute_gnn_derivative(model, source, target, data, epsilons, num_trials):
-    """
-    Compute the derivative-like quantity for a GNN model.
-
-    Parameters:
-    - model: The GNN model (assumes a PyTorch model).
-    - source: Index of the source node.
-    - target: Index of the target node.
-    - x: Feature matrix (torch.Tensor).
-    - epsilons: List of epsilon values to use.
-    - num_trials: Number of trials with random perturbation vectors.
-
-    Returns:
-    - results: Dictionary with epsilons as keys and average derivative estimates as values.
-    """
-    device = next(model.parameters()).device  # Ensure computations are on the model's device
-    x = data.x
-    x = x.to(device)  # Move x to the same device as the model
-
-    results = {}
-    x = x.clone()  # Ensure x is not modified in-place
-    softmax = torch.nn.Softmax(dim=None)
-    for eps in epsilons:
-        derivatives = []
-        for _ in range(num_trials):
-            # Generate a random vector of the same shape as x[source]
-            random_vector = torch.randn_like(x[source], device=device)
-            random_vector = random_vector / random_vector.norm(p=2)  # Normalize the vector (L2 norm)
-
-            # Perturb x[source] with eps * random_vector
-            x_perturbed = x.clone()
-            x_perturbed[source] += eps * random_vector
-
-            # Compute F(x+eps*v)[target] and F(x)[target]
-            with torch.no_grad():
-                data.root_mask = data.train_mask
-                data.x = x_perturbed
-                F_x_perturbed = softmax(model(data))
-                data.x = x 
-                F_x = softmax(model(data))
-
-            # Compute the difference and divide by eps
-            derivative = (F_x_perturbed - F_x) / eps
-
-            # Take the norm of the derivative (you can customize this)
-            derivatives.append(derivative.norm(p=2).item())
-
-        # Store the average derivative for this epsilon
-        return np.mean(derivatives)
-
 def worker_init_fn(seed: int):
     np.random.seed(seed)
     random.seed(seed)
-def create_trainer(args, task_specific, seed, metric_callback, need_time=True):
-    model_dir, _ = create_model_dir(args, task_specific, seed=seed)
+    
+def create_trainer(args, task_specific,  metric_callback, need_time=True):
+    model_dir, _ = create_model_dir(args, task_specific)
     checkpoint_callback = ModelCheckpoint(
         dirpath=model_dir,
         filename='{epoch}-f{val_acc:.5f}',
@@ -460,3 +408,18 @@ def fix_seed(seed):
         random.seed(seed)
         np.random.seed(seed)
         seed_everything(seed, workers=True)
+
+def return_dataloader(args):
+    X_train, X_test, X_val = return_datasets(args=args)
+    # Prepare data loaders
+    train_loader = DataLoader(
+        X_train, batch_size=args.batch_size, shuffle=True, num_workers=args.loader_workers,
+        persistent_workers=True, worker_init_fn=lambda _: worker_init_fn(args.seed)
+    )
+    val_loader = DataLoader(
+        X_val, batch_size=args.val_batch_size, shuffle=False, pin_memory=True, num_workers=args.loader_workers
+    )
+    test_loader = DataLoader(
+        X_test, batch_size=args.val_batch_size, shuffle=False, pin_memory=True, num_workers=args.loader_workers
+    )
+    return train_loader, val_loader, test_loader, X_val

@@ -1,9 +1,0 @@
-
-torch
-torchvision
-torchaudio
-torch_geometric
-pytorch-lightning
-easydict
-type_enforced
-scikit-learn

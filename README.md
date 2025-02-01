@@ -1,98 +1,70 @@
-
-# Over-squash
-
----
+# Over-Squash
 
 ## Description
 
-Over-squash is a tool for solving the problem of information bottlenecks in graph neural networks (GNNs) or implementing effective mechanisms to mitigate over-squashing issues. This project uses Python and deep learning frameworks, including PyTorch and PyTorch Geometric. It aims to enhance the ability of GNNs to handle long-range dependencies without suffering from information loss or compression, thereby improving their performance in tasks requiring deep relational information.
+Over-squashing is a phenomenon in Graph Neural Networks (GNNs) where information bottlenecks hinder effective message passing over long-range dependencies. This project implements mechanisms to mitigate over-squashing, improving GNN performance on tasks requiring deep relational reasoning. It is built using Python and deep learning frameworks, including **PyTorch** and **PyTorch Geometric**.
 
----
-
-## Installation For Over-squashing and transductive learning
+## Installation for Over-Squashing and Transductive Learning
 
 To set up the project environment and install all necessary dependencies, follow these steps:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yonatansverdlov/Over-squashing.git
-   ```
-
-2. Navigate into the project directory:
-   ```bash
-   cd Over-squashing
-   ```
-
-3. Create a new Conda environment and activate it:
-   ```bash
-   conda create --name oversquash -c conda-forge python=3.11
-   conda activate oversquash
-   ```
-
-4. Install the necessary dependencies from the `requirements.txt` file:
-   ```bash
-   pip install -r requirements.txt
-   ```
----
+```bash
+git clone https://github.com/yonatansverdlov/Over-squashing.git
+cd Over-squashing
+conda env create -f dependencies.yaml
+conda activate oversquash
+```
 
 ## Usage
 
-We present three types of experiments: Over-squashing experiments, Transductive learning, Graph classification, and LRGB.
-## Graph classification tasks
-First run
-   ```bash
-   cd bottleneck/script
-   ```
-Select a `data_type` from the following nine options: **Protein, MUTAG**.
+This project includes three types of experiments: **Over-Squashing Experiments, Transductive Learning, and Graph Classification (MolHIV & LRGB).**
 
-Run:
-   ```bash
-   python train.py --dataset_name data_type --repeat 10 -min_radius 3 --max_radius 4
-   ```
-## Over-squashing experiments
-First run
-   ```bash
-   cd bottleneck/script
-   ```
-Choose data_type, one of the four options: Ring, Tree, CrossRing, CliquePath. 
-Then, for Tree, choose a radius between 2 and 8, and for others, between 2 and 15.
-For non-Tree
-Run
-   ```bash
-   python train.py --dataset_name data_type --min_radius 2 --max_radius 16
-   ```
-For Tree run
-   ```bash
-   python train.py --dataset_name data_type --min_radius 2 --max_radius 9
-   ```
----
-## Transductive Learning
-First run
-   ```bash
-   cd bottleneck/script
-   ```
-Select a `data_type` from the following nine options: **Cora, Cite, Pubm, Cham, Squi, Actor, Corn, Texas, Wisc**.
-Run:
-   ```bash
-   python train.py --dataset_name data_type --repeat 10 
-   ```
-## LRGB & MolHIV
-1. Create a new Conda environment and activate it:
-   ```bash
-   cd Over-squashing
-   conda create --name lrgb -c conda-forge python=3.10
-   conda activate lrgb
-   ```
-2. Install the necessary dependencies from the `lrgb_requirements.txt` file:
-   ```bash
-   pip install -r lrgb_requirements.txt
-   ```
+### Over-Squashing Experiments
+Navigate to the bottleneck directory:
+```bash
+cd bottleneck
+```
+Choose a `data_type` from the following options: **Ring, Tree, CrossRing, CliquePath.**  
+For `Tree`, choose a radius between **2 and 8**, for others, between **2 and 15**.
+
+For `Tree` experiments:
+```bash
+python train.py --dataset_name data_type --min_radius 2 --max_radius 9
+```
+For `Ring`, `CrossRing`, or `CliquePath`:
+```bash
+python train.py --dataset_name data_type --min_radius 2 --max_radius 16
+```
+
+### Transductive Learning
+Navigate to the bottleneck directory:
+```bash
+cd bottleneck
+```
+Choose a `data_type` from the following options: **Cora, Cite, Pubm, Cham, Squi, Actor, Corn, Texas, Wisc.**  
+Set `repeat` to a value between **1 and 10** to determine the number of different seeds:
+```bash
+python train.py --dataset_name data_type --repeat repeat
+```
+
+### Graph Classification (Mutag & Protein)
+For `MUTAG` and `Protein` datasets, specify the number of different seeds (`repeat`) and run:
+```bash
+python train.py --dataset_name data_type --repeat repeat --min_radius 3 --max_radius 4
+```
+For LRGB and MolHIV:
+```bash
+cd Over-squashing
+conda create --name lrgb -c conda-forge python=3.10
+conda activate lrgb
+pip install -r lrgb_requirements.txt
+```
+
 ## License
 
 This project is licensed under the MIT License.
 
----
-
 ## Contact
 
 For any questions or feedback, reach out to me at `yonatans@campus.technion.ac.il`.
+

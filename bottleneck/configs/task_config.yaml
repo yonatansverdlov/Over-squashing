@@ -41,6 +41,7 @@ Task_specific:
       num_test_samples: 5
       use_residual: False
       use_layer_norm: False
+      lr_factor: .9
     CrossRing:
       batch_size: 5
       lr_factor: .9
