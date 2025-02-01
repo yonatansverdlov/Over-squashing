@@ -15,7 +15,7 @@ def parse_arguments() -> EasyDict:
         EasyDict: Parsed arguments in an easy-to-use dictionary.
     """
     parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
-    parser.add_argument('--task_type', type=str, default='Ring', help='Dataset to use for training.')
+    parser.add_argument('--task_type', type=str, default='Protein', help='Dataset to use for training.')
     parser.add_argument('--min_radius', type=int, default=2, help='Minimum radius value for model depth.')
     parser.add_argument('--max_radius', type=int, default=3, help='Maximum radius value for model depth.')
     parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')

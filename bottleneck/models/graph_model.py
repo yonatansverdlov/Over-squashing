@@ -6,7 +6,6 @@ from fsw.fsw_layer import FSW_readout
 from torch_geometric.nn import global_mean_pool
 import torch
 
-
 class GraphModel(nn.Module):
     """
     A customizable graph neural network model designed for various graph tasks.
@@ -19,38 +18,34 @@ class GraphModel(nn.Module):
     def __init__(self, args: EasyDict):
         super().__init__()
         dtype = getattr(torch, args.dtype)
-
-        # Store arguments
-        self.h_dim = args.dim
-        self.out_dim = args.out_dim
-        self.gnn_type = args.gnn_type
-        self.num_layers = args.depth
+        # Model configuration
         self.use_layer_norm = args.use_layer_norm
         self.use_residual = args.use_residual
+        self.num_layers = args.depth 
+        self.h_dim = args.dim
+        self.out_dim = args.out_dim
+        self.task_type = args.task_type
+        self.gnn_type = args.gnn_type
 
-        # Dataset-specific settings stored in a dictionary to avoid redundant checks
-        self.dataset_config = {
-            "single_graph": args.task_type in {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi',
-                                               'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp',
-                                               'Protein'},
-            "global_task": args.task_type in {'MUTAG', 'Protein'},
-            "edge_features": args.task_type in {'MUTAG'},
-            "encode_value": args.task_type == 'Tree'
-        }
-
-        # Node embedding layer
-        self.embed_label = (
+        # Dataset-specific configuration
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp','Protein','PTC','NCI'}
+        self.need_continuous_features = self.task_type in self.single_graph_datasets
+        self.global_task = self.task_type in {'MUTAG','Protein','PTC','NCI'}        
+        self.need_edge_features = self.task_type in {'MUTAG','PTC',}
+        self.need_encode_value = self.task_type in {'Tree'}
+        # Embedding initialization          
+        self.embed_label = (                  
             nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
-            if self.dataset_config["single_graph"]
-            else nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
+            if self.need_continuous_features else 
+            nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
         )
         self.embed_value = (
             nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
-            if self.dataset_config["encode_value"]
-            else None
+            if self.need_encode_value else None
         )
-        self.need_encode_value = self.dataset_config["encode_value"]
-        # Graph layers and normalization
+
+        # Model layers and normalization
         self.layers = nn.ModuleList([
             get_layer(in_dim=self.h_dim, out_dim=self.h_dim, args=args)
             for _ in range(self.num_layers)
@@ -59,55 +54,57 @@ class GraphModel(nn.Module):
             nn.ModuleList([nn.LayerNorm(self.h_dim) for _ in range(self.num_layers)])
             if self.use_layer_norm else None
         )
-
-        # Edge embedding layer if needed
-        self.embed_edge = (
-            nn.Linear(args.num_edge_features, self.h_dim, dtype=dtype)
-            if self.dataset_config["edge_features"]
-            else None
-        )
-        self.need_edge_features = self.dataset_config["edge_features"]
+        
         # Output layer setup
-        if self.dataset_config["global_task"]:
+        if self.global_task:
+            # Embed edges.
             edgefeat_dim = args.edgefeat_dim
-            args.edgefeat_dim = 0  # Temporarily set to 0 for readout configuration
-            self.out_layer = (
-                FSW_readout(in_channels=self.h_dim, out_channels=args.out_dim,
-                            config=dict(args), concat_self=False, dtype=dtype)
-                if self.gnn_type == 'SW'
-                else global_mean_pool
-            )
-            args.edgefeat_dim = edgefeat_dim  # Restore original value
+            self.embed_edge = nn.Linear(args.num_edge_features, self.h_dim, dtype=dtype)
+            # ReadOut.
+            args.edgefeat_dim = 0
+            if self.gnn_type == 'SW':   
+                self.out_layer = FSW_readout(
+                    in_channels=self.h_dim,
+                    out_channels=args.out_dim,
+                    config=dict(args),
+                    concat_self=False,
+                    dtype=dtype
+                )
+            else:
+                self.out_layer = global_mean_pool
+            args.edgefeat_dim = edgefeat_dim
         else:
             self.out_layer = nn.Linear(self.h_dim, self.out_dim)
-
+        
         # Initialize model parameters
         self.init_model()
 
     def init_model(self):
-        """Initialize model parameters using Xavier (Glorot) uniform initialization."""
-        if not self.dataset_config["global_task"]:
+        """
+        Initialize model parameters using Xavier (Glorot) uniform initialization.
+        Ensures stable gradient flow at the start of training.
+        """
+        
+        if not self.global_task:
             nn.init.xavier_uniform_(self.out_layer.weight)
-        if self.embed_edge:
+        if self.need_edge_features:
             nn.init.xavier_uniform_(self.embed_edge.weight)
-
+            
     def forward(self, data: Data):
         """
         Forward pass through the graph model.
 
         Args:
-            data (Data): A Torch Geometric `Data` object containing node features, edges, and other attributes.
+            data (Data): A Torch Geometric Data object containing node features, edges, and other attributes.
 
         Returns:
             torch.Tensor: Predictions for nodes (or graphs, depending on task).
         """
         x = self.compute_node_embedding(data)
-        return (
-            self.out_layer(x, data.batch)  # Global task requires batch information
-            if self.dataset_config["global_task"]
-            else self.out_layer(x)[data.root_mask]  # Filter predictions for root nodes
-        )
-
+        if self.global_task:
+            return self.out_layer(x, data.batch)  # Global task requires batch information
+        else:
+            return self.out_layer(x)[data.root_mask]  # Filter predictions for root nodes
 
     def compute_node_embedding(self, data: Data):
         """
