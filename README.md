@@ -1,10 +1,12 @@
 # Over-Squash
 
-## Description
+## Overview
 
-Over-squashing is a phenomenon in Graph Neural Networks (GNNs) where information bottlenecks hinder effective message passing over long-range dependencies. This project implements mechanisms to mitigate over-squashing, improving GNN performance on tasks requiring deep relational reasoning. It is built using Python and deep learning frameworks, including **PyTorch** and **PyTorch Geometric**.
+This repo contains code for the experimental part of the paper "FSW-GNN: A Bi-Lipschitz WL-Equivalent Graph Neural Network".
 
-## Installation for Over-Squashing and Transductive Learning
+Over-squashing is a phenomenon in Graph Neural Networks (GNNs) where information bottlenecks hinder effective message passing over long-range dependencies. This project implements mechanisms to mitigate over-squashing, improving GNN performance on tasks requiring deep Networks. It is built using Python and deep learning frameworks, including **PyTorch** and **PyTorch Geometric**.
+
+## Installation
 
 To set up the project environment and install all necessary dependencies, follow these steps:
 
@@ -25,7 +27,6 @@ Navigate to the bottleneck directory:
 cd bottleneck
 ```
 Choose a `data_type` from the following options: **Ring, Tree, CrossRing, CliquePath.**  
-For `Tree`, choose a radius between **2 and 8**, for others, between **2 and 15**.
 
 For `Tree` experiments:
 ```bash
