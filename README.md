@@ -1,6 +1,7 @@
 # Over-Squash
 
 ![Graph Structures](images/over_squash_graphs.png)
+*Figure from "On Over-Squashing in Message Passing Neural Networks" by Francesco Di Giovanni et al*
 
 ## Overview
 
