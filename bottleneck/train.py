@@ -68,8 +68,6 @@ def train_graphs(args: EasyDict, task_specific: str, metric_callback, measure_ov
         print(f"MAD Energy: {energy:.4f}")
 
     return test_acc_model, energy
-
-
 def main():
     """
     Main function to run training experiments for various model depths.
@@ -82,6 +80,7 @@ def main():
     )
 
     accuracy_results = {}
+    energy_results = {}
 
     # Iterate over depth range
     for current_depth in range(min_radius, max_radius):
@@ -91,17 +90,18 @@ def main():
         for repeat_idx in range(repeats):
             fix_seed(args.seed)
             args.split_id = repeat_idx
-            train_graphs(args, task_specific, metric_callback)
-
+            _, energy = train_graphs(args, task_specific, metric_callback, measure_oversmoothing=True)
+        
         # Retrieve best epoch results
         best_mean, best_std = metric_callback.get_best_epoch()
         accuracy_results[current_depth] = (best_mean, best_std)
+        energy_results[current_depth] = energy  # Store energy for each radius
 
-    # Display final accuracy results
-    print("\nFinal Accuracy Results for All Radii:")
+    # Display final accuracy and energy results
+    print("\nFinal Accuracy and Energy Results for All Radii:")
     for radius, (mean_acc, std_acc) in accuracy_results.items():
-        print(f"Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}%")
-
+        energy = energy_results[radius]
+        print(f"Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% | MAD Energy: {energy:.4f}")
 
 if __name__ == "__main__":
     main()

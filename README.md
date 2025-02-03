@@ -1,5 +1,7 @@
 # Over-Squash
 
+![Graph Structures](images/over_squash_graphs.png)
+
 ## Overview
 
 This repo contains code for the experimental part of the paper "FSW-GNN: A Bi-Lipschitz WL-Equivalent Graph Neural Network".
