@@ -94,15 +94,18 @@ class LightningModel(lightning.LightningModule):
 
     def training_step(self, batch: Data, _):
         """Computes training loss and accuracy."""
+        self.model.train()
         return self._shared_step(batch, "train")
 
     def validation_step(self, batch: Data, _):
         """Computes validation loss and accuracy."""
-        with torch.no_grad():
+        self.model.eval()
+        with torch.no_grad(): 
             return self._shared_step(batch, "val")
 
     def test_step(self, batch: Data, _):
         """Computes test loss and accuracy."""
+        self.model.eval()
         with torch.no_grad():
             return self._shared_step(batch, "test")
 

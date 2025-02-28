@@ -285,8 +285,7 @@ def return_datasets(args):
         'Cite': lambda: torch_geometric.datasets.Planetoid(data_path, split='geom-gcn', name='CiteSeer'),
         'Pubm': lambda: torch_geometric.datasets.Planetoid(data_path, split='geom-gcn', name='PubMed'),
         'MUTAG': lambda: torch_geometric.datasets.TUDataset(data_path, name='MUTAG'),
-        'Protein': lambda: torch_geometric.datasets.TUDataset(data_path, name='PROTEINS'),
-        'NCI': lambda: torch_geometric.datasets.TUDataset(data_path, name='NCI1'),
+        'Protein': lambda: torch_geometric.datasets.TUDataset(data_path, name='PROTEINS')
     }
 
     dataset = task_datasets[args.task_type]()
