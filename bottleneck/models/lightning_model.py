@@ -5,7 +5,6 @@ from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
 import lightning
-from utils import compute_os_energy
 
 
 class LightningModel(lightning.LightningModule):
@@ -25,11 +24,13 @@ class LightningModel(lightning.LightningModule):
         self.weight_decay = args.wd
         self.task_type = args.task_type
         self.is_mutag = self.task_type in {'MUTAG', 'Protein'}
-        self.radius = args.depth
 
         # Determine if dataset needs continuous features
+        self.need_continuous_features = self.task_type in {
+            'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi',
+            'Cham', 'Cite', 'Pubm', 'MUTAG', 'Protein'
+        }
         self.model = GraphModel(args)
-        self.energy = 0.0
 
     def forward(self, X: Data) -> Tensor:
         """Forward pass through the model."""
@@ -58,6 +59,13 @@ class LightningModel(lightning.LightningModule):
         if mask is None:
             raise ValueError(f"Mask '{mask_attr}' not found in batch.")
 
+        if self.need_continuous_features:
+            # Ensure mask is 2D before indexing
+            if mask.dim() < 2:
+                raise ValueError(f"Expected 2D mask but got shape {mask.shape} for task_id {self.task_id}")
+
+            return batch.y[mask[:, self.task_id]], mask[:, self.task_id]
+        
         return batch.y, mask  # Keep the original mask unchanged
 
 
@@ -88,21 +96,10 @@ class LightningModel(lightning.LightningModule):
         """Computes training loss and accuracy."""
         self.model.train()
         return self._shared_step(batch, "train")
-    
-    def on_train_epoch_end(self):
-        num_samples = len(self.trainer.val_dataloaders)
-        total_energy = 0.0
-        for batch in self.trainer.val_dataloaders:
-            batch = batch.to('cuda')
-            energy = compute_os_energy(self.model, batch)
-            total_energy+=energy
-        energy = total_energy/num_samples
-        self.energy = energy
 
     def validation_step(self, batch: Data, _):
         """Computes validation loss and accuracy."""
         self.model.eval()
-        self.log('grad_ratio', self.energy, batch_size=batch.y.size(0))
         with torch.no_grad(): 
             return self._shared_step(batch, "val")
 
@@ -110,8 +107,7 @@ class LightningModel(lightning.LightningModule):
         """Computes test loss and accuracy."""
         self.model.eval()
         with torch.no_grad():
-            loss = self._shared_step(batch, "test")
-        return loss
+            return self._shared_step(batch, "test")
 
     def configure_optimizers(self):
         """

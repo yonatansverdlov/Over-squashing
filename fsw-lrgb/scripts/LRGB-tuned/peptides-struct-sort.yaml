@@ -1,0 +1,70 @@
+out_dir: results
+metric_best: mae
+metric_agg: argmin
+wandb:
+  use: True
+  project: peptides-struct
+dataset:
+  format: OGB
+  name: peptides-structural
+  task: graph
+  task_type: regression
+  transductive: False
+  node_encoder: True
+  node_encoder_name: Atom+LapPE
+  node_encoder_bn: False
+  edge_encoder: False
+  edge_encoder_name: Bond
+  edge_encoder_bn: False
+  max_neighbors: 5
+  max_nodes: 444
+posenc_LapPE:
+  enable: True
+  eigen:
+    laplacian_norm: none
+    eigvec_norm: L2
+    max_freqs: 10
+  model: DeepSet
+  dim_pe: 16
+  layers: 2
+  raw_norm_type: none
+posenc_RWSE:
+  enable: False
+  kernel:
+    times_func: range(1,21)
+  model: Linear
+  dim_pe: 28
+  raw_norm_type: BatchNorm
+train:
+  mode: custom
+  batch_size: 200
+  eval_period: 1
+  ckpt_period: 100
+model:
+  type: sort_gnn
+  loss_fun: l1
+  graph_pooling: sort_global
+gnn:
+  head: mlp_sort
+  layers_pre_mp: 0
+  layers_mp: 4
+  layers_post_mp: 3
+  dim_inner: 165
+  act: gelu
+  residual: True
+  dropout: 0.0
+  update_w_orig: False
+  blank_vector_method: learnable
+  bias: True
+  norm: batch
+  combine: ConcatProject
+  collapse_method: vector
+optim:
+  clip_grad_norm: True
+  optimizer: adamW
+  weight_decay: 0.01
+  base_lr: 0.005
+  max_epoch: 250
+  scheduler: step
+  steps: [20,40,60,80,100,120,140,160,180,200,220]
+  num_warmup_epochs: 5
