@@ -96,6 +96,7 @@ def main():
         if task in 'two_radius':
             num_layers = 2
             n = 20
+            need_one_hot = True
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task,num_layers=num_layers,n = n,need_one_hot = need_one_hot)
         metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
 
