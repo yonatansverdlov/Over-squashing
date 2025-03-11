@@ -102,7 +102,7 @@ class StopAtValAccCallback(Callback):
     Args:
         target_acc (float): Accuracy threshold for stopping training early.
     """
-    def __init__(self, target_acc=1.0):
+    def __init__(self, target_acc=0.99):
         super().__init__()
         self.target_acc = target_acc
 
@@ -170,7 +170,7 @@ def get_layer(args: EasyDict, in_dim: int, out_dim: int):
     }
     return gnn_layers[args.gnn_type]()
 
-def get_args(num_layers, depth: int, gnn_type: str, task_type: str,n:int,need_one_hot:bool):
+def get_args(num_layers, depth: int, gnn_type: str, task_type: str,n:int):
     """
     Load and update arguments from a YAML configuration file.
 
@@ -182,7 +182,7 @@ def get_args(num_layers, depth: int, gnn_type: str, task_type: str,n:int,need_on
     Returns:
         tuple: Configuration arguments and task-specific settings.
     """
-    clean_args = EasyDict(depth=depth, gnn_type=gnn_type, task_type=task_type,num_layers = num_layers,n=n,need_one_hot = need_one_hot)
+    clean_args = EasyDict(depth=depth, gnn_type=gnn_type, task_type=task_type,num_layers = num_layers,n=n)
     config_path = pathlib.Path(__file__).parent / "configs/task_config.yaml"
     
     with open(config_path) as f:
@@ -406,29 +406,47 @@ def return_dataloader(args):
     return train_loader, val_loader, test_loader, X_val 
 
 def compute_os_energy(model, Data):
-    model = model.eval()  # Switch to evaluation mode (optional)
-    num_nodes = Data.x.size(0)//Data.num_graphs
-    # Ensure Data.x has gradients
+    model = model.eval()  # Evaluation mode
+    # Compute number of nodes per graph assuming contiguous blocks in Data.x
+    num_nodes = Data.x.size(0) // Data.num_graphs  
+    # Ensure Data.x requires gradients
     Data.x = Data.x.clone().detach().requires_grad_()
 
-    # Define function for Jacobian computation
     def model_target(x):
         Data_clone = Data.clone()  # Clone full Data object
         Data_clone.x = x  # Use modified input
-        Data_clone.x.retain_grad()  # Retain gradients for debugging
+        Data_clone.x.retain_grad()  # Retain gradients (optional debugging)
         torch.set_grad_enabled(True)
-        return model.compute_node_embedding( Data_clone)[Data_clone.train_mask]
+        # Assume that model.compute_node_embedding returns a tensor whose entries
+        # corresponding to each graph are selected by Data_clone.train_mask
+        return model.compute_node_embedding(Data_clone)[Data_clone.train_mask]
 
-    # Compute the full Jacobian
+    # Compute the full Jacobian.
+    # Expected jacobian shape: (B, F_out, B*num_nodes, F_in) where B = Data.num_graphs (here 5)
     jacobian = torch.autograd.functional.jacobian(model_target, Data.x)
-    total_energy = 0.0
-    for j in range(5):
-        # Node j, graph j.
-        partial_grads = jacobian[j,:,num_nodes*j:num_nodes*(j+1),:]
-        energy = torch.norm(partial_grads[:,0,:],p=2) /(torch.norm(partial_grads,dim=(0,2),p=2).sum()+1e-6)
-        total_energy += energy
-    energy = total_energy / 5
-    return energy
+
+    B = Data.num_graphs  # Batch size (expected to be 5)
+    # Reshape jacobian from shape (B, F_out, B*num_nodes, F_in)
+    # to shape (B, F_out, B, num_nodes, F_in)
+    jacobian = jacobian.view(B, jacobian.shape[1], B, num_nodes, jacobian.shape[3])
+    # For each graph j, extract the corresponding slice: jacobian[j, :, j, :, :]
+    idx = torch.arange(B)
+    partial_grads = jacobian[idx, :, idx, :, :]  # shape: (B, F_out, num_nodes, F_in)
+
+    # Compute numerator: for each graph, take the gradient for the first node (index 0)
+    # and compute its Frobenius norm (i.e. norm over output feature and input feature dimensions)
+    numerator = torch.norm(partial_grads[:, :, 0, :], p=2, dim=(1, 2))
+
+    # Compute denominator: for each graph, compute the Frobenius norm over the output and input feature
+    # dimensions for each node, then sum over all nodes in that graph.
+    # Here, torch.norm(..., dim=(1, 3)) computes a norm over the F_out and F_in dims, leaving a tensor of shape (B, num_nodes)
+    denominator = torch.norm(partial_grads, p=2, dim=(1, 3)).sum(dim=1) + 1e-6
+
+    # Compute per-graph energy and average over batch
+    energy = numerator / denominator
+    return energy.mean()
+
+
 
 
     

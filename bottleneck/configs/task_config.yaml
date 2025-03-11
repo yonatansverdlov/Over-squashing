@@ -9,7 +9,7 @@ Common:
   max_epochs: 100
   mlp_activation_hidden: relu
   mlp_activation_final: relu
-  val_batch_size: 1024
+  val_batch_size: 64
   accum_grad: 1
   lr_factor: .7
   repeat: 1
@@ -296,7 +296,7 @@ Task_specific:
       eval_every: 5
       num_train_samples: 5
       num_test_samples: 5
-      val_batch_size: 1
+      val_batch_size: 5
     two_radius:
        batch_size: 128
        mlp_layers: 3 # 0/3
@@ -341,6 +341,12 @@ Task_specific:
       seed: 15
       take_last: True
   GGNN: 
+    two_radius:
+       batch_size: 128
+       max_epochs: 200            
+       lr_factor: .9
+       num_train_samples: 10000
+       num_test_samples: 1000
     MUTAG:
       dim: 128
       edgefeat_dim: 128

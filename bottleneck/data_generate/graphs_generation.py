@@ -58,7 +58,8 @@ class RadiusProblemGraphs(object):
         self.classes = classes
         self.repeat = args.repeat
         self.n = args.n
-        self.need_one_hot = args.need_one_hot
+        self.args = args
+        args.classes = classes
 
     def generate_sample(self):
         raise NotImplementedError
@@ -449,32 +450,24 @@ class OneRadiusProblemStarGraph(RadiusProblemGraphs):
         random_ids_A = random.sample(range(n), n)
         labels_A = [random.randint(0, self.classes-1) for _ in range(n)]
 
-        if self.need_one_hot:
-            # Here we call one_hot_encode without a separate F import:
-            id_one_hot_A = self.one_hot_encode(torch.tensor(random_ids_A), self.n)
-            label_one_hot_A = self.one_hot_encode(torch.tensor(labels_A), self.classes + 1)
+        # Here we call one_hot_encode without a separate F import:
+        id_one_hot_A = self.one_hot_encode(torch.tensor(random_ids_A), self.n)
+        label_one_hot_A = self.one_hot_encode(torch.tensor(labels_A), self.classes + 1)
 
-            center_id = random.randrange(n)
-            center_id_one_hot = self.one_hot_encode(torch.tensor([center_id]), self.n)
-            # Suppose you want a special label for center node:
-            center_label_one_hot = self.one_hot_encode(
-                torch.tensor([self.classes]),
-                self.classes+1
-            )
+        center_id = random.randrange(n)
+        center_id_one_hot = self.one_hot_encode(torch.tensor([center_id]), self.n)
+        # Suppose you want a special label for center node:
+        center_label_one_hot = self.one_hot_encode(
+            torch.tensor([self.classes]),
+            self.classes+1
+        )
 
-            x = torch.cat([
-                torch.cat([id_one_hot_A, label_one_hot_A], dim=-1),  # A nodes
-                torch.cat([center_id_one_hot, center_label_one_hot], dim=-1)
-            ], dim=0)
+        x = torch.cat([
+            torch.cat([id_one_hot_A, label_one_hot_A], dim=-1),  # A nodes
+            torch.cat([center_id_one_hot, center_label_one_hot], dim=-1)
+        ], dim=0)
 
-            center_label = labels_A[random_ids_A.index(center_id)]
-        else:
-            # Original non-one-hot implementation
-            features_A = [[random_ids_A[i], labels_A[i]] for i in range(n)]
-            center_id = random.randrange(n)
-            feature_v = [center_id, self.classes]
-            x = torch.tensor(features_A + [feature_v], dtype=torch.long)
-            center_label = labels_A[random_ids_A.index(center_id)]
+        center_label = labels_A[random_ids_A.index(center_id)]
 
         # Create mask and target
         mask = torch.zeros(num_nodes, dtype=torch.bool)
@@ -519,7 +512,24 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         super().__init__(args, add_crosses, classes)
         self.K = K
 
-    def generate_sample(self, n, label, add_crosses):
+    def generate_dataset(self,num_samples):
+        """
+        Generate a dataset of lollipop transfer graphs.
+        Returns:
+        - list[Data]: List of Torch geometric data structures.
+        """
+        nodes = 2 * (self.depth)
+        if nodes <= 1: raise ValueError("Minimum of two nodes required")
+        dataset = []
+        samples_per_class = num_samples // self.classes
+        for i in range(num_samples):
+            label = i // samples_per_class
+            graph = self.generate_sample()
+            dataset.append(graph)
+
+        return dataset
+
+    def generate_sample(self):
         """
         Generate a single graph sample.
         - n: Number of nodes in sets A and B.
@@ -527,6 +537,7 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         - add_crosses: (Unused in this implementation, but included for compatibility).
         """
         # Node count: n (A) + 1 (v) + n (B) = 2n + 1
+        n = self.args.n
         num_nodes = 2 * n + self.K
         center_nodes = [i for i in range(n, n+self.K)]  # Index of the central node v
 
@@ -545,61 +556,32 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         # 1️⃣ Generate node IDs
         random_ids_A = torch.tensor(random.sample(range(n), n), dtype=torch.long)  # Unique IDs for A
         random_ids_B = random_ids_A[torch.randperm(n)]  # Shuffle to assign B IDs randomly from A
-        ids_A = random_ids_A
-        ids_B = random_ids_B
-        # One-hot encode IDs
-        if self.need_one_hot:
-            random_ids_A = self.one_hot_encode(random_ids_A, n + self.K)  # (n, n+1)
-            random_ids_B = self.one_hot_encode(random_ids_B, n + self.K)  # (n, n+1)
-        else:
-            random_ids_A = random_ids_A.view(-1,1)
-            random_ids_B = random_ids_B.view(-1,1)
-        # 2️⃣ Generate labels for A
         labels_A = torch.randint(0, self.classes, (n,), dtype=torch.long)  # Random labels for A
         labels_B = torch.full((n,), self.classes)
-        label_A = labels_A
-        if self.need_one_hot:
-            labels_A = self.one_hot_encode(labels_A, self.classes + 1)  # One-hot labels for A
-        else:
-            labels_A = labels_A.view(-1,1)  
-        # 3️⃣ Assign labels to B
-        if self.need_one_hot:
-            labels_B = self.one_hot_encode(labels_B, self.classes + 1)  # All B labels = classes+1
-        else: 
-            labels_B = labels_B.view(-1,1)
-        # 4️⃣ Construct the feature matrix
-        # A nodes: Concatenate one-hot IDs and labels
-        features_A = torch.cat((random_ids_A, labels_A), dim=1)  # Shape (n, (n+1) + (classes+1))
-
-        # Center node v: One-hot encoding of ID=n and label=classes
-        if self.need_one_hot:
-           feature_v = torch.cat([
-           torch.cat((
-                self.one_hot_encode(torch.tensor([n + i]), n + self.K),  # ID part (adjusted for multiple centers)
-                self.one_hot_encode(torch.tensor([self.classes]), self.classes + 1)  # Label part
-            ), dim=1) for i in range(self.K)], dim=0)  # Shape (K, (n+K) + (classes+1))
-
-        else:
-            feature_v = torch.tensor([n, self.classes], dtype=torch.long).view(1, 2)
-
-        # B nodes: One-hot IDs and fixed label (classes+1)
-        features_B = torch.cat((random_ids_B, labels_B), dim=1)  # Shape (n, (n+1) + (classes+1))
-
-        # 5️⃣ Combine all features into a single tensor
-        x = torch.cat((features_A, feature_v, features_B), dim=0)  # Shape (num_nodes, (n+1) + (classes+1))
-
-        # 6️⃣ Target Labels for B
-        id_to_label_map = {id.item(): label.item() for id, label in zip(ids_A, label_A)}
+        id_to_label_map = {id.item(): label.item() for id, label in zip(random_ids_A, labels_A)}
 
         # 2️⃣ Efficiently retrieve labels for B using dictionary lookup
-        y = torch.tensor([id_to_label_map[id.item()] for id in ids_B], dtype=torch.long)
+        y = torch.tensor([id_to_label_map[id.item()] for id in random_ids_B], dtype=torch.long)
+        # One-hot encode IDs
+        random_ids_A = self.one_hot_encode(random_ids_A, n + self.K)  # (n, n+1)
+        random_ids_B = self.one_hot_encode(random_ids_B, n + self.K)  # (n, n+1)
+        # One-hot encode labels
+        labels_A = self.one_hot_encode(labels_A, self.classes + 1)  # One-hot labels for A
+        labels_B = self.one_hot_encode(labels_B, self.classes + 1)  # All B labels = classes+1
+        # 3️⃣ Assign labels to B
+        feature_v_id = self.one_hot_encode(torch.tensor([n]), n + self.K)
+        feature_v_label = self.one_hot_encode(torch.tensor([self.classes]), self.classes + 1)
 
+        # 5️⃣ Combine all features into a single tensor
+        x_id = torch.cat((random_ids_A,feature_v_id,random_ids_B,),dim=0)
+        x_label = torch.cat((labels_A,feature_v_label,labels_B),dim=0)
         # 7️⃣ Create masks (only B nodes used for training)
         mask = torch.zeros(num_nodes, dtype=torch.bool)
         mask[n + self.K:] = True  # Only B nodes included in the mask
 
         # 8️⃣ Create PyTorch Geometric Data object
-        data = Data(x=x, edge_index=edge_index, y=y, train_mask=mask, val_mask=mask, test_mask=mask)
+        data = Data(x_id=x_id,x_label = x_label, edge_index=edge_index, y=y, train_mask=mask, val_mask=mask, test_mask=mask,
+                    x = x_id)
 
         return data
     def get_dims(self):
@@ -608,4 +590,4 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         Returns:
         - (in_dim, out_dim): Tuple representing input and output dimensions.
         """
-        return self.n + self.classes + 1 + self.K, self.classes
+        return self.n + 1, self.classes

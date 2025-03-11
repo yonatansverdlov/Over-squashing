@@ -15,7 +15,7 @@ def parse_arguments() -> EasyDict:
         EasyDict: Parsed arguments in an easy-to-use dictionary.
     """
     parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
-    parser.add_argument('--task_type', type=str, default='two_radius', help='Dataset to use for training.')
+    parser.add_argument('--task_type', type=str, default='Ring', help='Dataset to use for training.')
     parser.add_argument('--min_radius', type=int, default=2, help='Minimum radius value for model depth.')
     parser.add_argument('--max_radius', type=int, default=3, help='Maximum radius value for model depth.')
     parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
@@ -79,7 +79,6 @@ def main():
         args.task_type, args.min_radius, args.max_radius, args.repeat, args.model_type
     )
     n = 1
-    need_one_hot = False
     accuracy_results = {}
     energy_results = {} 
     # Iterate over depth range
@@ -94,10 +93,9 @@ def main():
             num_layers = 1
             n = 20
         if task in 'two_radius':
-            num_layers = 2
-            n = 20
-            need_one_hot = True
-        args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task,num_layers=num_layers,n = n,need_one_hot = need_one_hot)
+            num_layers = 3
+            n = 10
+        args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task,num_layers=num_layers,n = n)
         metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
 
         for repeat_idx in range(repeats):

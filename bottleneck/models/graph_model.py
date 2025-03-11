@@ -28,11 +28,11 @@ class GraphModel(nn.Module):
         self.gnn_type = args.gnn_type
 
         # Dataset-specific configuration
-        self.need_encode_value = self.task_type in {'Tree','one_radius'}
+        self.need_encode_value = self.task_type in {'Tree','one_radius','two_radius'}
         # Embedding initialization          
         self.embed_label = nn.Linear(args.in_dim, self.h_dim, dtype=dtype,bias=False)
         self.embed_value = (
-            nn.Embedding(args.in_dim, self.h_dim, dtype=dtype)
+            nn.Linear(args.classes + 1, self.h_dim, dtype=dtype)
             if self.need_encode_value else None
         )
 
@@ -58,6 +58,8 @@ class GraphModel(nn.Module):
         """
         nn.init.xavier_uniform_(self.out_layer.weight)
         nn.init.normal_(self.embed_label.weight, mean=0, std=1)
+        if self.need_encode_value:
+            nn.init.normal_(self.embed_value.weight, mean=0, std=1)
         # embedding_dim = self.h_dim
         # nn.init.uniform_(self.embed_label.weight, -1.0 / embedding_dim**0.5, 1.0 / embedding_dim**0.5)
             
@@ -86,14 +88,13 @@ class GraphModel(nn.Module):
             torch.Tensor: Node embeddings of shape (num_nodes, h_dim).
         """
         x, edge_index = data.x, data.edge_index
-        x.requires_grad_()
         # Node feature embedding
         if self.need_encode_value:
-            x = self.embed_label(x[:, 0]) + self.embed_value(x[:, 1])
+            x = self.embed_label(data.x_id) + self.embed_value(data.x_label)
         else:
             x = self.embed_label(x)
 
-        # Graph layers
+        # Graph layerss
         for i, layer in enumerate(self.layers):
             new_x = x
             new_x = layer(new_x, edge_index)

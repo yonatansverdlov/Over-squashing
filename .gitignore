@@ -80,3 +80,4 @@ data/
 # Ignore the environment file itself
 lrgb/
 
+.qodo
