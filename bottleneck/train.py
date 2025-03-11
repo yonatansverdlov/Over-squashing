@@ -15,11 +15,11 @@ def parse_arguments() -> EasyDict:
         EasyDict: Parsed arguments in an easy-to-use dictionary.
     """
     parser = argparse.ArgumentParser(description="Train graph models on specified datasets.")
-    parser.add_argument('--task_type', type=str, default='Ring', help='Dataset to use for training.')
+    parser.add_argument('--task_type', type=str, default='two_radius', help='Dataset to use for training.')
     parser.add_argument('--min_radius', type=int, default=2, help='Minimum radius value for model depth.')
     parser.add_argument('--max_radius', type=int, default=3, help='Maximum radius value for model depth.')
     parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
-    parser.add_argument('--model_type', type=str, default='SW', help='Model type for training.')
+    parser.add_argument('--model_type', type=str, default='GIN', help='Model type for training.')
     
     return EasyDict(vars(parser.parse_args()))  # Convert argparse.Namespace to EasyDict
 
@@ -55,12 +55,12 @@ def train_graphs(args: EasyDict, task_specific: str, metric_callback, measure_ov
         model = LightningModel.load_from_checkpoint(
             checkpoint_callback.best_model_path, args=args, model=model.model
         )
-
+    energy = trainer.callback_metrics.get("grad_ratio")
     # Test model
     test_results = trainer.test(model, test_loader, verbose=False)
     test_acc_model = test_results[0]['test_acc'] * 100
 
-    energy = 0.0
+
     if measure_oversmoothing:
         val_loader = DataLoader(X_val, batch_size=1, shuffle=False, 
                                 pin_memory=True, num_workers=args.loader_workers)
@@ -78,19 +78,31 @@ def main():
     task, min_radius, max_radius, repeats, model_type = (
         args.task_type, args.min_radius, args.max_radius, args.repeat, args.model_type
     )
-
+    n = 1
+    need_one_hot = False
     accuracy_results = {}
-    energy_results = {}
-
+    energy_results = {} 
     # Iterate over depth range
     for current_depth in range(min_radius, max_radius):
-        args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
+        if task in ['Ring','CliquePath','CrossRing','Tree','Path','KPaths']:
+             num_layers = current_depth  
+        if task in ['TwoCycles']:  
+             num_layers = 2*current_depth + 1 
+        if task in ['KPaths']:  
+             num_layers = current_depth + 1 
+        if task in 'one_radius':
+            num_layers = 1
+            n = 20
+        if task in 'two_radius':
+            num_layers = 2
+            n = 20
+        args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task,num_layers=num_layers,n = n,need_one_hot = need_one_hot)
         metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
 
         for repeat_idx in range(repeats):
             fix_seed(args.seed)
             args.split_id = repeat_idx
-            _, energy = train_graphs(args, task_specific, metric_callback, measure_oversmoothing=True)
+            _, energy = train_graphs(args, task_specific, metric_callback, measure_oversmoothing=False)
         
         # Retrieve best epoch results
         best_mean, best_std = metric_callback.get_best_epoch()
@@ -101,7 +113,7 @@ def main():
     print("\nFinal Accuracy and Energy Results for All Radii:")
     for radius, (mean_acc, std_acc) in accuracy_results.items():
         energy = energy_results[radius]
-        print(f"Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% | MAD Energy: {energy:.4f}")
+        print(f"GNN: {model_type} |Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% | OS Energy: {energy:.4f}")
 
 if __name__ == "__main__":
     main()

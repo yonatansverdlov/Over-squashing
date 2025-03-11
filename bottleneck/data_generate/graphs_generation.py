@@ -9,21 +9,61 @@ from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data
 from easydict import EasyDict
 
+def merge_graphs(G1: Data, G2: Data, idx_1: int, idx_2: int, target_label: int):
+        """
+        Merge two graphs G1 and G2 with the same number of nodes.
+        - G1's first node has the label.
+        - All other nodes in G1 and G2 are set to 1.
+        - G1's node at idx_1 is connected to G2's node at idx_2.
+        - Mask is placed on G2's last node.
+
+        Args:
+        - G1 (Data): First graph.
+        - G2 (Data): Second graph.
+        - idx_1 (int): Node index in G1 to be connected.
+        - idx_2 (int): Node index in G2 to be connected.
+        - target_label (int): Label assigned to the first node of G1.
+
+        Returns:
+        - Data: Merged graph with adjusted features, edges, and mask.
+        """
+        num_nodes = G1.x.size(0)
+        
+        # Create new feature tensor
+        x = torch.ones(2 * num_nodes, dtype=torch.long)
+        x[0] = target_label  # First node of G1 gets the label
+        
+        # Merge edge indices and connect idx_1 in G1 to idx_2 in G2
+        edge_index = torch.cat(
+            (G1.edge_index, 
+             G2.edge_index + num_nodes, 
+             torch.tensor([[idx_1, idx_2 + num_nodes], [idx_2 + num_nodes, idx_1]], dtype=torch.long)),
+            dim=1
+        )
+        
+        # Define mask on last node of G2
+        mask = torch.zeros(2 * num_nodes, dtype=torch.bool)
+        mask[num_nodes + G2.most_distant] = 1
+        
+        return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
+                    val_mask=mask, train_mask=mask, test_mask=mask)
 
 class RadiusProblemGraphs(object):
-    def __init__(self, args:EasyDict, add_crosses,num_classes):
+    def __init__(self, args:EasyDict, add_crosses:bool,classes:int):
         self.args = args
         self.depth = args.depth
         self.num_train_samples = args.num_train_samples
         self.num_test_samples = args.num_test_samples
         self.add_crosses = add_crosses
-        self.num_classes = num_classes
+        self.classes = classes
         self.repeat = args.repeat
+        self.n = args.n
+        self.need_one_hot = args.need_one_hot
 
     def generate_sample(self):
         raise NotImplementedError
     
-    def generate_dataset(self,num_samples,index:int=0):
+    def generate_dataset(self,num_samples):
         """
         Generate a dataset of lollipop transfer graphs.
         Returns:
@@ -32,11 +72,9 @@ class RadiusProblemGraphs(object):
         nodes = 2 * (self.depth)
         if nodes <= 1: raise ValueError("Minimum of two nodes required")
         dataset = []
-        samples_per_class = num_samples // self.num_classes
+        samples_per_class = num_samples // self.classes
         for i in range(num_samples):
             label = i // samples_per_class
-            target_class = np.zeros(self.num_classes)
-            target_class[label] = 1.0
             graph = self.generate_sample(nodes, label,self.add_crosses)
             dataset.append(graph)
 
@@ -48,11 +86,20 @@ class RadiusProblemGraphs(object):
         return X_train, X_train, X_train
     
     def get_dims(self):
-        return self.num_classes, self.num_classes
+        return self.classes, self.classes
+    
+    def one_hot_encode(self, indices: torch.Tensor, num_classes: int) -> torch.Tensor:
+        """
+        One-hot encode indices using torch.nn.functional.one_hot
+        without `import torch.nn.functional as F`.
+        """
+        # Use the fully-qualified path directly:
+        oh = torch.nn.functional.one_hot(indices, num_classes=num_classes)
+        return oh.float()
 
 class TreeDataset(RadiusProblemGraphs):
     def __init__(self, args):
-        super(TreeDataset, self).__init__(args=args,add_crosses=None,num_classes=None)
+        super(TreeDataset, self).__init__(args=args,add_crosses=None,classes=None)
         self.num_nodes, self.edges, self.leaf_indices = self._create_blank_tree()
         self.repeat = args.repeat
 
@@ -154,10 +201,9 @@ class TreeDataset(RadiusProblemGraphs):
         dim = len(self.leaf_indices) + 1
         return dim, dim
 
-
 class RingDataset(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, add_crosses:bool=False, classes:int=5):
-        super(RingDataset, self).__init__(args=args,add_crosses=add_crosses,num_classes=classes)
+        super(RingDataset, self).__init__(args=args,add_crosses=add_crosses,classes=classes)
 
     def generate_sample(self, nodes: int, target_label: int, add_crosses: bool):
         """
@@ -175,7 +221,8 @@ class RingDataset(RadiusProblemGraphs):
 
         # Initialize feature matrix and set target node feature
         x = torch.ones(nodes, dtype=torch.long)
-        x[nodes // 2] = target_label  # Source node feature
+        x[0] = target_label  # Source node feature
+        x = self.one_hot_encode(x,self.classes)
         # Initialize edges with ring structure
         edge_index = [[i, (i + 1) % nodes] for i in range(nodes)]
         edge_index += [[(i + 1) % nodes, i] for i in range(nodes)]
@@ -191,13 +238,16 @@ class RingDataset(RadiusProblemGraphs):
 
         # Create mask for target node
         mask = torch.zeros(nodes, dtype=torch.bool)
-        mask[0] = 1  # Only the target node (index 0) is marked true
+        source_mask = torch.zeros(nodes, dtype=torch.bool)
+        mask[nodes // 2] = 1  # Only the target node (index 0) is marked true
+        source_mask[0] = 1
         # Return the data object
-        return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label, train_mask=mask, test_mask=mask)
+        return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label, train_mask=mask, test_mask=mask,most_distant = nodes//2,
+                    source_mask = source_mask,num_gradps = 1)
 
 class CliquePath(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, classes:int=5):
-        super(CliquePath, self).__init__(args=args,num_classes = classes,add_crosses = False)
+        super(CliquePath, self).__init__(args=args,classes = classes,add_crosses = False)
         self.depth-=1
 
     def generate_sample(self, nodes: int, target_label: int, _):
@@ -238,3 +288,324 @@ class CliquePath(RadiusProblemGraphs):
 
         return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
                     val_mask=mask, train_mask=mask, test_mask=mask)
+
+class TwoConnectedCycles(RingDataset):
+    def __init__(self, args: EasyDict, classes: int = 5):
+        super(TwoConnectedCycles, self).__init__(args=args, classes=classes, add_crosses=False)
+
+    def generate_sample(self, nodes: int, target_label: int, _):
+        """
+        Generate a graph consisting of two connected cycles.
+
+        Args:
+        - nodes (int): Total number of nodes in the graph (must be even).
+        - target_label (int): Label for the source node in C1.
+
+        Returns:
+        - Data: Torch geometric data structure containing graph details.
+        """
+        data_1 = super(TwoConnectedCycles, self).generate_sample(nodes, target_label, False)
+        data_2 = super(TwoConnectedCycles, self).generate_sample(nodes, target_label, False)
+        return merge_graphs(G1 = data_1, G2 = data_2, target_label = target_label,
+                            idx_1 = data_1.most_distant, idx_2 = 0)
+    
+class PathGraph(RadiusProblemGraphs):
+    def __init__(self, args: EasyDict, classes: int = 5):
+        super(PathGraph, self).__init__(args=args, classes=classes, add_crosses=False)
+
+    def generate_dataset(self,num_samples):
+        """
+        Generate a dataset of lollipop transfer graphs.
+        Returns:
+        - list[Data]: List of Torch geometric data structures.
+        """
+        nodes = (self.depth)
+        if nodes <= 1: raise ValueError("Minimum of two nodes required")
+        dataset = []
+        samples_per_class = num_samples // self.classes
+        for i in range(num_samples):
+            label = i // samples_per_class
+            graph = self.generate_sample(nodes, label,self.add_crosses)
+            dataset.append(graph)
+
+        return dataset
+
+    def generate_sample(self, nodes: int, target_label: int, _):
+        """
+        Generate a simple path graph.
+
+        Args:
+        - nodes (int): Number of nodes in the graph.
+        - target_label (int): Label for the source node.
+
+        Returns:
+        - Data: Torch geometric data structure containing graph details.
+        """
+        if nodes <= 1:
+            raise ValueError("Minimum of two nodes required for a path.")
+
+        # Initialize node features with ones and set first node to target label
+        x = torch.ones(nodes+1, dtype=torch.long)
+        x[0] = target_label
+
+        # Create edges for a simple path
+        edge_index = [[i, i + 1] for i in range(nodes)]
+        edge_index += [[i + 1, i] for i in range(nodes)]
+        
+        # Convert edge list to tensor
+        edge_index = torch.tensor(edge_index, dtype=torch.long).T
+        
+        # Create masks: source (first node) and target (last node)
+        mask = torch.zeros(nodes+1, dtype=torch.bool)
+        mask[-1] = 1  # Target node at the end of the path
+        
+        return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
+                    val_mask=mask, train_mask=mask, test_mask=mask)
+
+class KIndependentPaths(RadiusProblemGraphs):
+    def __init__(self, args: EasyDict, k: int=5, classes: int = 5):
+        super(KIndependentPaths, self).__init__(args=args, classes=classes, add_crosses=False)
+        self.k = k
+
+    def generate_dataset(self,num_samples):
+        """
+        Generate a dataset of lollipop transfer graphs.
+        Returns:
+        - list[Data]: List of Torch geometric data structures.
+        """
+        nodes = (self.depth)
+        if nodes <= 1: raise ValueError("Minimum of two nodes required")
+        dataset = []
+        samples_per_class = num_samples // self.classes
+        for i in range(num_samples):
+            label = i // samples_per_class
+            graph = self.generate_sample(nodes, label,self.add_crosses)
+            dataset.append(graph)
+
+        return dataset
+
+    def generate_sample(self, nodes: int, target_label: int, _):
+        """
+        Generate a graph with K independent paths connected to a common start and end node.
+
+        Args:
+        - nodes (int): Number of nodes per path.
+        - target_label (int): Label for the source node.
+
+        Returns:
+        - Data: Torch geometric data structure containing graph details.
+        """
+        if nodes < 2:
+            raise ValueError("Minimum of two nodes required per path.")
+
+        total_nodes = self.k * nodes + 2  # Additional nodes for start and end
+        start_node = 0
+        end_node = total_nodes - 1
+        x = torch.ones(total_nodes, dtype=torch.long)
+        x[start_node] = target_label
+        
+        edge_index = []
+        
+        for i in range(self.k):
+            offset = i * nodes + 1  # Paths start after start_node
+            edge_index.append([start_node, offset])  # Connect start to each path
+            edge_index.append([offset, start_node])
+            
+            for j in range(nodes - 1):
+                edge_index.append([offset + j, offset + j + 1])
+                edge_index.append([offset + j + 1, offset + j])
+            
+            edge_index.append([offset + nodes - 1, end_node])  # Connect end of path to end node
+            edge_index.append([end_node, offset + nodes - 1])
+        
+        edge_index = torch.tensor(edge_index, dtype=torch.long).T
+        
+        mask = torch.zeros(total_nodes, dtype=torch.bool)
+        mask[end_node] = 1
+        
+        return Data(x=x, edge_index=edge_index, root_mask=mask, y=target_label,
+                    val_mask=mask, train_mask=mask, test_mask=mask)
+ 
+class OneRadiusProblemStarGraph(RadiusProblemGraphs):
+    def __init__(self, args: EasyDict, add_crosses = False, classes = 10):
+        super().__init__(args, add_crosses, classes)
+
+    def generate_sample(self, n:int, label:int, add_crosses:bool):
+        """
+        Generate a single graph sample with one-hot encoding support.
+        """
+        num_nodes = n + 1
+        center_node = n
+
+        # Create edges
+        edge_index = []
+        for i in range(n):
+            edge_index.append([i, center_node])
+            edge_index.append([center_node, i])
+                    
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+
+        # Generate node features for A
+        random_ids_A = random.sample(range(n), n)
+        labels_A = [random.randint(0, self.classes-1) for _ in range(n)]
+
+        if self.need_one_hot:
+            # Here we call one_hot_encode without a separate F import:
+            id_one_hot_A = self.one_hot_encode(torch.tensor(random_ids_A), self.n)
+            label_one_hot_A = self.one_hot_encode(torch.tensor(labels_A), self.classes + 1)
+
+            center_id = random.randrange(n)
+            center_id_one_hot = self.one_hot_encode(torch.tensor([center_id]), self.n)
+            # Suppose you want a special label for center node:
+            center_label_one_hot = self.one_hot_encode(
+                torch.tensor([self.classes]),
+                self.classes+1
+            )
+
+            x = torch.cat([
+                torch.cat([id_one_hot_A, label_one_hot_A], dim=-1),  # A nodes
+                torch.cat([center_id_one_hot, center_label_one_hot], dim=-1)
+            ], dim=0)
+
+            center_label = labels_A[random_ids_A.index(center_id)]
+        else:
+            # Original non-one-hot implementation
+            features_A = [[random_ids_A[i], labels_A[i]] for i in range(n)]
+            center_id = random.randrange(n)
+            feature_v = [center_id, self.classes]
+            x = torch.tensor(features_A + [feature_v], dtype=torch.long)
+            center_label = labels_A[random_ids_A.index(center_id)]
+
+        # Create mask and target
+        mask = torch.zeros(num_nodes, dtype=torch.bool)
+        mask[center_node] = True
+        y = torch.tensor([center_label], dtype=torch.long)
+
+        return Data(x=x, edge_index=edge_index, y=y,
+                train_mask=mask, val_mask=mask, test_mask=mask)
+        
+    def generate_dataset(self, num_samples):
+        """
+        Generate a dataset of radius problem graphs.
+        - num_samples: Number of graphs to generate.
+        Returns:
+        - list[Data]: List of PyTorch Geometric Data objects.
+        """
+        nodes = self.n  # Use self.depth as the size of sets A and B
+        if nodes <= 1:
+            raise ValueError("Minimum of two nodes required")
+        
+        dataset = []
+        samples_per_class = num_samples // self.classes
+        
+        for i in range(num_samples):
+            label = i // samples_per_class
+            graph = self.generate_sample(nodes, label, self.add_crosses)
+            dataset.append(graph)
+
+        return dataset
+    
+    def get_dims(self):
+        """
+        Get input and output dimensions for the graphs.
+        Returns:
+        - (in_dim, out_dim): Tuple representing input and output dimensions.
+        """
+        return self.n + self.classes + 1, self.classes
+
+
+class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
+    def __init__(self, args: EasyDict, add_crosses = False, classes = 10,K=1):
+        super().__init__(args, add_crosses, classes)
+        self.K = K
+
+    def generate_sample(self, n, label, add_crosses):
+        """
+        Generate a single graph sample.
+        - n: Number of nodes in sets A and B.
+        - label: Label for the current sample.
+        - add_crosses: (Unused in this implementation, but included for compatibility).
+        """
+        # Node count: n (A) + 1 (v) + n (B) = 2n + 1
+        num_nodes = 2 * n + self.K
+        center_nodes = [i for i in range(n, n+self.K)]  # Index of the central node v
+
+        # Create edges:
+        edge_index = []
+        for i in range(n):  # Edges from A to v and v to B
+            for center_node in center_nodes:
+                edge_index.append([i, center_node])
+                edge_index.append([center_node, i])
+                edge_index.append([center_node, i + n + self.K])  
+                edge_index.append([i + n + self.K, center_node])  
+
+        # Convert edge_index to tensor (2, num_edges)
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+
+        # 1️⃣ Generate node IDs
+        random_ids_A = torch.tensor(random.sample(range(n), n), dtype=torch.long)  # Unique IDs for A
+        random_ids_B = random_ids_A[torch.randperm(n)]  # Shuffle to assign B IDs randomly from A
+        ids_A = random_ids_A
+        ids_B = random_ids_B
+        # One-hot encode IDs
+        if self.need_one_hot:
+            random_ids_A = self.one_hot_encode(random_ids_A, n + self.K)  # (n, n+1)
+            random_ids_B = self.one_hot_encode(random_ids_B, n + self.K)  # (n, n+1)
+        else:
+            random_ids_A = random_ids_A.view(-1,1)
+            random_ids_B = random_ids_B.view(-1,1)
+        # 2️⃣ Generate labels for A
+        labels_A = torch.randint(0, self.classes, (n,), dtype=torch.long)  # Random labels for A
+        labels_B = torch.full((n,), self.classes)
+        label_A = labels_A
+        if self.need_one_hot:
+            labels_A = self.one_hot_encode(labels_A, self.classes + 1)  # One-hot labels for A
+        else:
+            labels_A = labels_A.view(-1,1)  
+        # 3️⃣ Assign labels to B
+        if self.need_one_hot:
+            labels_B = self.one_hot_encode(labels_B, self.classes + 1)  # All B labels = classes+1
+        else: 
+            labels_B = labels_B.view(-1,1)
+        # 4️⃣ Construct the feature matrix
+        # A nodes: Concatenate one-hot IDs and labels
+        features_A = torch.cat((random_ids_A, labels_A), dim=1)  # Shape (n, (n+1) + (classes+1))
+
+        # Center node v: One-hot encoding of ID=n and label=classes
+        if self.need_one_hot:
+           feature_v = torch.cat([
+           torch.cat((
+                self.one_hot_encode(torch.tensor([n + i]), n + self.K),  # ID part (adjusted for multiple centers)
+                self.one_hot_encode(torch.tensor([self.classes]), self.classes + 1)  # Label part
+            ), dim=1) for i in range(self.K)], dim=0)  # Shape (K, (n+K) + (classes+1))
+
+        else:
+            feature_v = torch.tensor([n, self.classes], dtype=torch.long).view(1, 2)
+
+        # B nodes: One-hot IDs and fixed label (classes+1)
+        features_B = torch.cat((random_ids_B, labels_B), dim=1)  # Shape (n, (n+1) + (classes+1))
+
+        # 5️⃣ Combine all features into a single tensor
+        x = torch.cat((features_A, feature_v, features_B), dim=0)  # Shape (num_nodes, (n+1) + (classes+1))
+
+        # 6️⃣ Target Labels for B
+        id_to_label_map = {id.item(): label.item() for id, label in zip(ids_A, label_A)}
+
+        # 2️⃣ Efficiently retrieve labels for B using dictionary lookup
+        y = torch.tensor([id_to_label_map[id.item()] for id in ids_B], dtype=torch.long)
+
+        # 7️⃣ Create masks (only B nodes used for training)
+        mask = torch.zeros(num_nodes, dtype=torch.bool)
+        mask[n + self.K:] = True  # Only B nodes included in the mask
+
+        # 8️⃣ Create PyTorch Geometric Data object
+        data = Data(x=x, edge_index=edge_index, y=y, train_mask=mask, val_mask=mask, test_mask=mask)
+
+        return data
+    def get_dims(self):
+        """
+        Get input and output dimensions for the graphs.
+        Returns:
+        - (in_dim, out_dim): Tuple representing input and output dimensions.
+        """
+        return self.n + self.classes + 1 + self.K, self.classes

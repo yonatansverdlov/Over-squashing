@@ -5,6 +5,7 @@ from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
 import lightning
+from utils import compute_os_energy
 
 
 class LightningModel(lightning.LightningModule):
@@ -24,6 +25,7 @@ class LightningModel(lightning.LightningModule):
         self.weight_decay = args.wd
         self.task_type = args.task_type
         self.is_mutag = self.task_type in {'MUTAG', 'Protein'}
+        self.radius = args.depth
 
         # Determine if dataset needs continuous features
         self.need_continuous_features = self.task_type in {
@@ -94,7 +96,9 @@ class LightningModel(lightning.LightningModule):
 
     def training_step(self, batch: Data, _):
         """Computes training loss and accuracy."""
+        energy = compute_os_energy(self.model, batch)
         self.model.train()
+        self.log("grad_ratio", energy, prog_bar=True, on_step=True, on_epoch=True, batch_size=batch.y.size(0))
         return self._shared_step(batch, "train")
 
     def validation_step(self, batch: Data, _):
@@ -107,7 +111,8 @@ class LightningModel(lightning.LightningModule):
         """Computes test loss and accuracy."""
         self.model.eval()
         with torch.no_grad():
-            return self._shared_step(batch, "test")
+            loss = self._shared_step(batch, "test")
+        return loss
 
     def configure_optimizers(self):
         """

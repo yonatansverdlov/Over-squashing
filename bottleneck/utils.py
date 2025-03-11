@@ -10,7 +10,7 @@ from torch_geometric.data import Dataset
 from torch.utils.data import Dataset, Subset
 import numpy as np
 from models.fsw.fsw_layer import FSW_conv
-from data_generate.graphs_generation import TreeDataset, CliquePath, RingDataset
+from data_generate.graphs_generation import TreeDataset, CliquePath, RingDataset, TwoConnectedCycles, PathGraph, KIndependentPaths, OneRadiusProblemStarGraph, TwoRadiusProblemStarGraph
 import time
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.trainer import Trainer
@@ -170,7 +170,7 @@ def get_layer(args: EasyDict, in_dim: int, out_dim: int):
     }
     return gnn_layers[args.gnn_type]()
 
-def get_args(depth: int, gnn_type: str, task_type: str):
+def get_args(num_layers, depth: int, gnn_type: str, task_type: str,n:int,need_one_hot:bool):
     """
     Load and update arguments from a YAML configuration file.
 
@@ -182,7 +182,7 @@ def get_args(depth: int, gnn_type: str, task_type: str):
     Returns:
         tuple: Configuration arguments and task-specific settings.
     """
-    clean_args = EasyDict(depth=depth, gnn_type=gnn_type, task_type=task_type)
+    clean_args = EasyDict(depth=depth, gnn_type=gnn_type, task_type=task_type,num_layers = num_layers,n=n,need_one_hot = need_one_hot)
     config_path = pathlib.Path(__file__).parent / "configs/task_config.yaml"
     
     with open(config_path) as f:
@@ -275,33 +275,15 @@ def return_datasets(args):
         'Ring': lambda: RingDataset(args=args, add_crosses=False).generate_data(),
         'CrossRing': lambda: RingDataset(args=args, add_crosses=True).generate_data(),
         'CliquePath': lambda: CliquePath(args=args).generate_data(),
-        'Actor': lambda: torch_geometric.datasets.Actor(data_path),
-        'Squi': lambda: torch_geometric.datasets.WikipediaNetwork(data_path, name='squirrel'),
-        'Cham': lambda: torch_geometric.datasets.WikipediaNetwork(data_path, name='chameleon'),
-        'Texas': lambda: torch_geometric.datasets.WebKB(data_path, name='Texas'),
-        'Corn': lambda: torch_geometric.datasets.WebKB(data_path, name='Cornell'),
-        'Wisc': lambda: torch_geometric.datasets.WebKB(data_path, name='Wisconsin'),
-        'Cora': lambda: torch_geometric.datasets.Planetoid(data_path, split='geom-gcn', name='Cora'),
-        'Cite': lambda: torch_geometric.datasets.Planetoid(data_path, split='geom-gcn', name='CiteSeer'),
-        'Pubm': lambda: torch_geometric.datasets.Planetoid(data_path, split='geom-gcn', name='PubMed'),
-        'MUTAG': lambda: torch_geometric.datasets.TUDataset(data_path, name='MUTAG'),
-        'Protein': lambda: torch_geometric.datasets.TUDataset(data_path, name='PROTEINS')
+        'TwoCycles': lambda: TwoConnectedCycles(args=args).generate_data(),
+        'Path': lambda: PathGraph(args=args).generate_data(),
+        'KPaths': lambda: KIndependentPaths(args=args).generate_data(),
+        'one_radius': lambda: OneRadiusProblemStarGraph(args=args).generate_data(),
+        'two_radius': lambda: TwoRadiusProblemStarGraph(args=args).generate_data(),
     }
 
     dataset = task_datasets[args.task_type]()
-
-    if args.task_type in transductive:
-        args.in_dim = dataset.num_node_features
-        args.out_dim = dataset.num_classes
-        return dataset, dataset, dataset
-    elif args.task_type in TUDatasets:
-        args.in_dim = dataset.num_node_features
-        args.out_dim = dataset.num_classes
-        args.num_edge_features = dataset.num_edge_features
-        train_dataset, test_dataset = split_dataset_for_10_fold(dataset=dataset, fold_id=args.split_id)
-        return train_dataset, test_dataset, test_dataset
-    else:
-        return dataset
+    return dataset
     
 def oversmoothing_metric(X, adj):
     """
@@ -386,7 +368,7 @@ def create_trainer(args, task_specific,  metric_callback, need_time=True):
         monitor='val_acc',
         save_last=True,
         mode='max')
-    stop_callback = StopAtValAccCallback() if args.task_type in ['Ring','CliquePath','CrossRing','Tree'] else None    
+    stop_callback = StopAtValAccCallback()   
     time_callback = TimingCallback() if need_time else None
     callbacks_list = [callback for callback in [checkpoint_callback, stop_callback, time_callback, metric_callback] if callback]
 
@@ -421,4 +403,32 @@ def return_dataloader(args):
     test_loader = DataLoader(
         X_test, batch_size=args.val_batch_size, shuffle=False, pin_memory=True, num_workers=args.loader_workers
     )
-    return train_loader, val_loader, test_loader, X_val
+    return train_loader, val_loader, test_loader, X_val 
+
+def compute_os_energy(model, Data):
+    model = model.eval()  # Switch to evaluation mode (optional)
+    num_nodes = Data.x.size(0)//Data.num_graphs
+    # Ensure Data.x has gradients
+    Data.x = Data.x.clone().detach().requires_grad_()
+
+    # Define function for Jacobian computation
+    def model_target(x):
+        Data_clone = Data.clone()  # Clone full Data object
+        Data_clone.x = x  # Use modified input
+        Data_clone.x.retain_grad()  # Retain gradients for debugging
+        torch.set_grad_enabled(True)
+        return model.compute_node_embedding( Data_clone)[Data_clone.train_mask]
+
+    # Compute the full Jacobian
+    jacobian = torch.autograd.functional.jacobian(model_target, Data.x)
+    total_energy = 0.0
+    for j in range(5):
+        # Node j, graph j.
+        partial_grads = jacobian[j,:,num_nodes*j:num_nodes*(j+1),:]
+        energy = torch.norm(partial_grads[:,0,:],p=2) /(torch.norm(partial_grads,dim=(0,2),p=2).sum()+1e-6)
+        total_energy += energy
+    energy = total_energy / 5
+    return energy
+
+
+    
