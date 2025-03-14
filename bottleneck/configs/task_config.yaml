@@ -9,61 +9,19 @@ Common:
   max_epochs: 100
   mlp_activation_hidden: relu
   mlp_activation_final: relu
-  val_batch_size: 64
+  val_batch_size: 1024
   accum_grad: 1
   lr_factor: .7
   repeat: 1
   batch_size: 1
   optim_type: Adam
   seed: 0
-  take_last: True
+  take_last: False
   dtype: float32
   edgefeat_dim: 0
 Task_specific:
   SW:
     Ring:
-      batch_size: 5
-      mlp_layers: 3
-      mlp_activation_hidden: lrelu
-      mlp_activation_final: lrelu
-      max_epochs: 100
-      num_train_samples: 5
-      num_test_samples: 5
-      use_residual: False
-      use_layer_norm: False
-      lr_factor: .9
-    one_radius:
-       batch_size: 128
-       mlp_layers: 3 # 0/3
-       mlp_activation_hidden: lrelu
-       mlp_activation_final: lrelu
-       max_epochs: 200
-       self_loop_weight: 0.2
-       lr_factor: .9
-       mlp_init: ~
-       num_train_samples: 10000
-       num_test_samples: 1000
-    TwoCycles:
-      batch_size: 5
-      mlp_layers: 3
-      mlp_activation_hidden: lrelu
-      mlp_activation_final: lrelu
-      max_epochs: 200
-      num_train_samples: 5
-      num_test_samples: 5
-      use_residual: False
-      use_layer_norm: False
-    Path:
-      batch_size: 5
-      mlp_layers: 3
-      mlp_activation_hidden: lrelu
-      mlp_activation_final: lrelu
-      max_epochs: 200
-      num_train_samples: 5
-      num_test_samples: 5
-      use_residual: False
-      use_layer_norm: False
-    KPaths:
       batch_size: 5
       mlp_layers: 3
       mlp_activation_hidden: lrelu
@@ -273,7 +231,7 @@ Task_specific:
       mlp_layers: 3
       batch_size: 16
       wd: 0.0
-      lr: 0.005
+      lr: 0.001
       max_epochs: 80
       optim_type: AdamW
       use_residual: True
@@ -282,32 +240,38 @@ Task_specific:
       num_train_samples: 5
       num_test_samples: 5
   GIN: 
+    MUTAG:
+      dim: 128
+      edgefeat_dim: 128
+      lr_factor: .9
+      mlp_layers: 3
+      batch_size: 16
+      wd: 0.0001
+      dropout_final: .1
+      dropout_hidden: .1
+      lr: 0.001
+      max_epochs: 80
+      optim_type: AdamW
+      use_residual: True
+      use_layer_norm: True
+      eval_every: 5
+      seed: 15
+      take_last: True
     Ring:
       dim: 64
       lr_factor: .7
       mlp_layers: 3
       batch_size: 5
       wd: 0.0
-      lr: 0.005
-      max_epochs: 100
+      lr: 0.001
+      max_epochs: 80
       optim_type: AdamW
       use_residual: True
       use_layer_norm: True
       eval_every: 5
       num_train_samples: 5
       num_test_samples: 5
-      val_batch_size: 5
-    two_radius:
-       batch_size: 128
-       mlp_layers: 3 # 0/3
-       mlp_activation_hidden: lrelu
-       mlp_activation_final: lrelu
-       max_epochs: 200
-       self_loop_weight: 0.2
-       lr_factor: .9
-       mlp_init: ~
-       num_train_samples: 10000
-       num_test_samples: 1000
+
   GCN: 
     Ring:
       dim: 64
@@ -315,7 +279,7 @@ Task_specific:
       mlp_layers: 3
       batch_size: 5
       wd: 0.0
-      lr: 0.005
+      lr: 0.001
       max_epochs: 80
       optim_type: AdamW
       use_residual: True
@@ -341,12 +305,6 @@ Task_specific:
       seed: 15
       take_last: True
   GGNN: 
-    two_radius:
-       batch_size: 128
-       max_epochs: 200            
-       lr_factor: .9
-       num_train_samples: 10000
-       num_test_samples: 1000
     MUTAG:
       dim: 128
       edgefeat_dim: 128

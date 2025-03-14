@@ -21,18 +21,23 @@ class GraphModel(nn.Module):
         # Model configuration
         self.use_layer_norm = args.use_layer_norm
         self.use_residual = args.use_residual
-        self.num_layers = args.num_layers
+        self.num_layers = args.depth 
         self.h_dim = args.dim
         self.out_dim = args.out_dim
         self.task_type = args.task_type
         self.gnn_type = args.gnn_type
 
         # Dataset-specific configuration
-        self.need_encode_value = self.task_type in {'Tree','one_radius','two_radius'}
+        self.single_graph_datasets = {'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi', 
+                                      'Cham', 'Cite', 'Pubm', 'MUTAG', 'lifshiz_comp','Protein','PTC','NCI'}
+        self.need_continuous_features = self.task_type in self.single_graph_datasets
+        self.global_task = self.task_type in {'MUTAG','Protein','PTC','NCI'}        
+        self.need_edge_features = self.task_type in {'MUTAG','PTC',}
+        self.need_encode_value = self.task_type in {'Tree'}
         # Embedding initialization          
-        self.embed_label = nn.Linear(args.in_dim, self.h_dim, dtype=dtype,bias=False)
+        self.embed_label = nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
         self.embed_value = (
-            nn.Linear(args.classes + 1, self.h_dim, dtype=dtype)
+            nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
             if self.need_encode_value else None
         )
 
@@ -47,7 +52,26 @@ class GraphModel(nn.Module):
         )
         
         # Output layer setup
-        self.out_layer = nn.Linear(self.h_dim, self.out_dim)
+        if self.global_task:
+            # Embed edges.
+            edgefeat_dim = args.edgefeat_dim
+            self.embed_edge = nn.Linear(args.num_edge_features, self.h_dim, dtype=dtype)
+            # ReadOut.
+            args.edgefeat_dim = 0
+            if self.gnn_type == 'SW':   
+                self.out_layer = FSW_readout(
+                    in_channels=self.h_dim,
+                    out_channels=args.out_dim,
+                    config=dict(args),
+                    concat_self=False,
+                    dtype=dtype
+                )
+            else:
+                self.out_layer = global_mean_pool
+            args.edgefeat_dim = edgefeat_dim
+        else:
+            self.out_layer = nn.Linear(self.h_dim, self.out_dim)
+        
         # Initialize model parameters
         self.init_model()
 
@@ -56,12 +80,11 @@ class GraphModel(nn.Module):
         Initialize model parameters using Xavier (Glorot) uniform initialization.
         Ensures stable gradient flow at the start of training.
         """
-        nn.init.xavier_uniform_(self.out_layer.weight)
-        nn.init.normal_(self.embed_label.weight, mean=0, std=1)
-        if self.need_encode_value:
-            nn.init.normal_(self.embed_value.weight, mean=0, std=1)
-        # embedding_dim = self.h_dim
-        # nn.init.uniform_(self.embed_label.weight, -1.0 / embedding_dim**0.5, 1.0 / embedding_dim**0.5)
+        nn.init.normal_(self.embed_label.weight,mean=0.0,std=1.0)
+        if not self.global_task:
+            nn.init.xavier_uniform_(self.out_layer.weight)
+        if self.need_edge_features:
+            nn.init.xavier_uniform_(self.embed_edge.weight)
             
     def forward(self, data: Data):
         """
@@ -74,7 +97,10 @@ class GraphModel(nn.Module):
             torch.Tensor: Predictions for nodes (or graphs, depending on task).
         """
         x = self.compute_node_embedding(data)
-        return self.out_layer(x)[data.root_mask]  # Filter predictions for root nodes
+        if self.global_task:
+            return self.out_layer(x, data.batch)  # Global task requires batch information
+        else:
+            return self.out_layer(x)[data.root_mask]  # Filter predictions for root nodes
 
     def compute_node_embedding(self, data: Data):
         """
@@ -87,17 +113,20 @@ class GraphModel(nn.Module):
         Returns:
             torch.Tensor: Node embeddings of shape (num_nodes, h_dim).
         """
-        x, edge_index = data.x, data.edge_index
+        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+
         # Node feature embedding
         if self.need_encode_value:
-            x = self.embed_label(data.x_id) + self.embed_value(data.x_label)
+            x = self.embed_label(x[:, 0]) + self.embed_value(x[:, 1])
         else:
             x = self.embed_label(x)
 
-        # Graph layerss
+        # Graph layers
         for i, layer in enumerate(self.layers):
             new_x = x
-            new_x = layer(new_x, edge_index)
+            if self.need_edge_features:
+                edge_attr = self.embed_edge(data.edge_attr)
+            new_x = layer(new_x, edge_index, edge_attr)
 
             # Residual connections
             if self.use_residual:
@@ -110,4 +139,3 @@ class GraphModel(nn.Module):
                 x = self.layer_norms[i](x)
 
         return x
-    

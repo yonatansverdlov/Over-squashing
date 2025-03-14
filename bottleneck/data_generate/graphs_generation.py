@@ -57,7 +57,6 @@ class RadiusProblemGraphs(object):
         self.add_crosses = add_crosses
         self.classes = classes
         self.repeat = args.repeat
-        self.n = args.n
         self.args = args
         args.classes = classes
 
@@ -137,16 +136,17 @@ class TreeDataset(RadiusProblemGraphs):
 
     def generate_data(self, train_fraction):
         data_list = []
-
+        in_dim, out_dim = self.get_dims()
+        self.args.in_dim = in_dim
+        self.args.out_dim = out_dim
         for comb in self.get_combinations():
             edge_index = self.create_blank_tree(add_self_loops=True)
             nodes = torch.tensor(self.get_nodes_features(comb), dtype=int)
             root_mask = torch.tensor([True] + [False] * (len(nodes) - 1))
             label = self.label(comb)
+            nodes = self.one_hot_encode(nodes, in_dim)
             data_list.append(Data(x=nodes, edge_index=edge_index, train_mask=root_mask,val_mask = root_mask,
                         test_mask = root_mask, y=label))
-
-        self.args.in_dim, self.args.out_dim = self.get_dims()
 
         X_train, _ = train_test_split(
             data_list, train_size=train_fraction, shuffle=True, stratify=[data.y for data in data_list])
@@ -266,8 +266,9 @@ class CliquePath(RadiusProblemGraphs):
             raise ValueError("Minimum of two nodes required")
 
         # Initialize node features with 1, setting the last node to the target label
-        x = torch.ones(nodes, dtype=torch.int)
+        x = torch.ones(nodes, dtype=torch.long)
         x[nodes - 1] = target_label
+        x = self.one_hot_encode(x,self.classes)
         # Construct edges for a clique in the first half
         clique_size = nodes // 2
         edge_index = [[i, j] for i in range(clique_size) for j in range(i + 1, clique_size)]
