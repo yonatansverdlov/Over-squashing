@@ -5,6 +5,10 @@ from models.graph_model import GraphModel
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch_geometric.data import Data
 import lightning
+<<<<<<< HEAD
+=======
+from utils import compute_os_energy_batched
+>>>>>>> add_batched
 
 
 class LightningModel(lightning.LightningModule):
@@ -23,8 +27,12 @@ class LightningModel(lightning.LightningModule):
         self.optim_type = args.optim_type
         self.weight_decay = args.wd
         self.task_type = args.task_type
+<<<<<<< HEAD
         self.is_mutag = self.task_type in {'MUTAG', 'Protein'}
 
+=======
+        self.radius = args.depth
+>>>>>>> add_batched
         # Determine if dataset needs continuous features
         self.need_continuous_features = self.task_type in {
             'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi',
@@ -51,9 +59,6 @@ class LightningModel(lightning.LightningModule):
         Returns:
             Tuple[Tensor, Optional[Tensor]]: Extracted labels and mask, or None if not needed.
         """
-        if self.is_mutag:
-            return batch.y, None  # No mask needed for MUTAG
-
         mask = getattr(batch, mask_attr, None)
 
         if mask is None:
@@ -100,6 +105,13 @@ class LightningModel(lightning.LightningModule):
     def validation_step(self, batch: Data, _):
         """Computes validation loss and accuracy."""
         self.model.eval()
+<<<<<<< HEAD
+=======
+        forbenius_energy = compute_os_energy_batched(self.model, batch,option='forb')
+        singular_energy = compute_os_energy_batched(self.model, batch,option = 'singular')
+        self.log("val_singular_energy", singular_energy, batch_size=batch.y.size(0))
+        self.log("val_forbenius_energy", forbenius_energy, batch_size=batch.y.size(0))
+>>>>>>> add_batched
         with torch.no_grad(): 
             return self._shared_step(batch, "val")
 

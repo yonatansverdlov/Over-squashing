@@ -83,7 +83,9 @@ class RadiusProblemGraphs(object):
     def generate_data(self):
         self.args.in_dim, self.args.out_dim = self.get_dims()
         X_train = self.generate_dataset(num_samples=self.num_train_samples)
-        return X_train, X_train, X_train
+        x_val = self.generate_dataset(num_samples=self.num_test_samples)
+        x_test = self.generate_dataset(num_samples=self.num_test_samples)
+        return X_train, x_val, x_test
     
     def get_dims(self):
         return self.classes, self.classes
@@ -239,12 +241,11 @@ class RingDataset(RadiusProblemGraphs):
 
         # Create mask for target node
         mask = torch.zeros(nodes, dtype=torch.bool)
-        source_mask = torch.zeros(nodes, dtype=torch.bool)
         mask[nodes // 2] = 1  # Only the target node (index 0) is marked true
-        source_mask[0] = 1
+        sources = torch.tensor([0]).view(-1,1)
         # Return the data object
         return Data(x=x, edge_index=edge_index, val_mask=mask, y=target_label, train_mask=mask, test_mask=mask,most_distant = nodes//2,
-                    source_mask = source_mask,num_gradps = 1)
+                      sources = sources)
 
 class CliquePath(RadiusProblemGraphs):
     def __init__(self, args:EasyDict, classes:int=5):
@@ -462,21 +463,19 @@ class OneRadiusProblemStarGraph(RadiusProblemGraphs):
             torch.tensor([self.classes]),
             self.classes+1
         )
-
-        x = torch.cat([
-            torch.cat([id_one_hot_A, label_one_hot_A], dim=-1),  # A nodes
-            torch.cat([center_id_one_hot, center_label_one_hot], dim=-1)
-        ], dim=0)
-
+        x_id = torch.cat([id_one_hot_A, center_id_one_hot], dim=0)
+        x_label = torch.cat([label_one_hot_A, center_label_one_hot], dim=0)
+        x = torch.cat([x_id,x_label],dim=-1)
         center_label = labels_A[random_ids_A.index(center_id)]
 
         # Create mask and target
         mask = torch.zeros(num_nodes, dtype=torch.bool)
         mask[center_node] = True
         y = torch.tensor([center_label], dtype=torch.long)
-
-        return Data(x=x, edge_index=edge_index, y=y,
-                train_mask=mask, val_mask=mask, test_mask=mask)
+        source = torch.tensor([center_id]).view(-1,1)
+        return Data(edge_index=edge_index, y=y,
+                train_mask=mask, val_mask=mask, test_mask=mask,sources = source,
+                x = x)
         
     def generate_dataset(self, num_samples):
         """
@@ -505,7 +504,7 @@ class OneRadiusProblemStarGraph(RadiusProblemGraphs):
         Returns:
         - (in_dim, out_dim): Tuple representing input and output dimensions.
         """
-        return self.n + self.classes + 1, self.classes
+        return self.n, self.classes
 
 
 class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
@@ -524,7 +523,6 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         dataset = []
         samples_per_class = num_samples // self.classes
         for i in range(num_samples):
-            label = i // samples_per_class
             graph = self.generate_sample()
             dataset.append(graph)
 
@@ -560,7 +558,7 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         labels_A = torch.randint(0, self.classes, (n,), dtype=torch.long)  # Random labels for A
         labels_B = torch.full((n,), self.classes)
         id_to_label_map = {id.item(): label.item() for id, label in zip(random_ids_A, labels_A)}
-
+        sources = random_ids_A.view(-1,1)
         # 2️⃣ Efficiently retrieve labels for B using dictionary lookup
         y = torch.tensor([id_to_label_map[id.item()] for id in random_ids_B], dtype=torch.long)
         # One-hot encode IDs
@@ -576,13 +574,14 @@ class TwoRadiusProblemStarGraph(RadiusProblemGraphs):
         # 5️⃣ Combine all features into a single tensor
         x_id = torch.cat((random_ids_A,feature_v_id,random_ids_B,),dim=0)
         x_label = torch.cat((labels_A,feature_v_label,labels_B),dim=0)
+        x = torch.cat([x_id,x_label],dim=1)
         # 7️⃣ Create masks (only B nodes used for training)
         mask = torch.zeros(num_nodes, dtype=torch.bool)
         mask[n + self.K:] = True  # Only B nodes included in the mask
 
         # 8️⃣ Create PyTorch Geometric Data object
-        data = Data(x_id=x_id,x_label = x_label, edge_index=edge_index, y=y, train_mask=mask, val_mask=mask, test_mask=mask,
-                    x = x_id)
+        data = Data(edge_index=edge_index, y=y, train_mask=mask, val_mask=mask, test_mask=mask,
+                    x = x,sources = sources)
 
         return data
     def get_dims(self):
