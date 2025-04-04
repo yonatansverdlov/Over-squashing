@@ -36,7 +36,7 @@ class LightningModel(lightning.LightningModule):
         # Determine if dataset needs continuous features
         self.need_continuous_features = self.task_type in {
             'Cora', 'Actor', 'Corn', 'Texas', 'Wisc', 'Squi',
-            'Cham', 'Cite', 'Pubm', 'MUTAG', 'Protein'
+            'Cham', 'Cite', 'Pubm', 'MUTAG', 'Protein','genius'
         }
         self.model = GraphModel(args)
 
@@ -60,10 +60,7 @@ class LightningModel(lightning.LightningModule):
             Tuple[Tensor, Optional[Tensor]]: Extracted labels and mask, or None if not needed.
         """
         mask = getattr(batch, mask_attr, None)
-
-        if mask is None:
-            raise ValueError(f"Mask '{mask_attr}' not found in batch.")
-
+            
         if self.need_continuous_features:
             # Ensure mask is 2D before indexing
             if mask.dim() < 2:
@@ -86,8 +83,7 @@ class LightningModel(lightning.LightningModule):
             Tensor: Computed loss.
         """
         label, mask = self._get_labels_and_mask(batch, f"{stage}_mask")
-        if mask is not None:
-            batch.root_mask = mask  # Assign root mask if necessary
+        batch.root_mask = mask # Assign root mask if necessary
         
         result = self.model(batch)
         loss = torch.nn.CrossEntropyLoss()(result, label)
