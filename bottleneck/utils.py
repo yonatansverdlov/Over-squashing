@@ -1,22 +1,21 @@
 import pathlib
 import torch
 import yaml
+import torch_geometric
 from torch_geometric.loader import DataLoader
 from easydict import EasyDict
 from torch import nn
 from torch_geometric.nn import GCNConv, GatedGraphConv, GINConv, GATConv, SAGEConv, TransformerConv
-from torch_geometric.data import Dataset
-from torch.utils.data import Dataset, Subset
 import numpy as np
 from models.fsw.fsw_layer import FSW_conv
 from data_generate.graphs_generation import TreeDataset, CliquePath, RingDataset
-import time
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.trainer import Trainer
 import random                                                                                                                                                                
 from lightning.pytorch.callbacks import ModelCheckpoint
 import os
 from lightning.pytorch import seed_everything
+from torch.utils.data import Dataset, Subset
 
 class MetricAggregationCallback(Callback):
     def __init__(self, eval_every=5):
@@ -147,6 +146,29 @@ def compute_dirichlet_energy(data, embedding):
                  for i, j in edge_index.t()) / (2 * edge_index.size(1))
     return energy.item()
 
+def split_dataset_for_10_fold(dataset: Dataset, fold_id: int):
+    """
+    Split dataset into training and testing subsets for 10-fold cross-validation.
+
+    Args:
+        dataset (Dataset): The full dataset to be split.
+        fold_id (int): The fold index to use as the test set (0 to 9).
+
+    Returns:
+        tuple: Training and testing subsets of the dataset.
+    """
+    assert 0 <= fold_id < 10, "fold_id should be between 0 and 9."
+
+    dataset_size = len(dataset)
+    fold_size = dataset_size // 10
+
+    # Indices for test and train sets
+    test_start_idx = fold_id * fold_size
+    test_end_idx = test_start_idx + fold_size
+    test_indices = list(range(test_start_idx, test_end_idx))
+    train_indices = list(range(0, test_start_idx)) + list(range(test_end_idx, dataset_size))
+
+    return Subset(dataset, train_indices), Subset(dataset, test_indices)
 
 def compute_energy(data, model):
     """
@@ -192,6 +214,9 @@ def return_datasets(args):
     Returns:
         tuple: Training, testing, and validation datasets.
     """
+    transductive = ['Actor', 'Squi', 'Cham', 'Texas', 'Corn', 'Wisc', 'Cora', 'Cite', 'Pubm']
+    TUDatasets = ['MUTAG', 'Protein']
+    data_path = 'data/raw'
     task_datasets = {
         'Tree': lambda: TreeDataset(args=args).generate_data(args.train_fraction),
         'Ring': lambda: RingDataset(args=args, add_crosses=False).generate_data(),
@@ -299,7 +324,7 @@ def worker_init_fn(seed: int):
     np.random.seed(seed)
     random.seed(seed)
     
-def create_trainer(args, task_specific,  metric_callback, need_time=True):
+def create_trainer(args, task_specific,  metric_callback):
     model_dir, _ = create_model_dir(args, task_specific)
     checkpoint_callback = ModelCheckpoint(
         dirpath=model_dir,
@@ -308,14 +333,8 @@ def create_trainer(args, task_specific,  metric_callback, need_time=True):
         monitor='val_acc',
         save_last=True,
         mode='max')
-<<<<<<< HEAD
     stop_callback = StopAtValAccCallback() if args.task_type in ['Ring','CliquePath','CrossRing','Tree'] else None    
-    time_callback = TimingCallback() if need_time else None
-    callbacks_list = [callback for callback in [checkpoint_callback, stop_callback, time_callback, metric_callback] if callback]
-=======
-    stop_callback = StopAtValAccCallback()   
     callbacks_list = [callback for callback in [checkpoint_callback, stop_callback, metric_callback] if callback]
->>>>>>> add_batched
 
     trainer = Trainer(
         max_epochs=args.max_epochs,
@@ -348,107 +367,4 @@ def return_dataloader(args):
     test_loader = DataLoader(
         X_test, batch_size=args.val_batch_size, shuffle=False, pin_memory=True, num_workers=args.loader_workers
     )
-<<<<<<< HEAD
     return train_loader, val_loader, test_loader, X_val
-=======
-    return train_loader, val_loader, test_loader, X_val 
-
-
-def compute_os_energy_batched(model, Data, option: str):
-    model = model.eval()
-    
-    # --- Infer Batch Dimensions ---
-    # Compute outputs to infer total number of target outputs M.
-    # Here, model.compute_node_embedding(Data)[Data.train_mask] should have shape (M, D_out)
-    with torch.set_grad_enabled(True):
-        outputs = model.compute_node_embedding(Data)[Data.train_mask]
-    M = outputs.shape[0]           # Total targets = G * T.
-    G = Data.num_graphs            # Number of graphs in the batch (must be provided).
-    T = M // G                   # Number of targets per graph (assumed uniform).
-    
-    # --- Define Helper Function for Jacobian Computation ---
-    def model_target(x):
-        Data_clone = Data.clone()
-        Data_clone.x = x
-        Data_clone.x.retain_grad()
-        torch.set_grad_enabled(True)
-        # Expected output shape: (M, D_out)
-        return model.compute_node_embedding(Data_clone)[Data_clone.train_mask]
-    
-    # --- Compute the Full Jacobian ---
-    # If Data.x has shape (G*N, D_in) then jacobian has shape (M, D_out, G*N, D_in)
-    jacobian = torch.autograd.functional.jacobian(model_target, Data.x)
-    
-    # --- Reshape Jacobian to Separate Graph and Target Dimensions ---
-    total_nodes = Data.x.shape[0]  # = G * N
-    N = total_nodes // G           # Nodes per graph
-    # Reshape from (M, D_out, G*N, D_in) to (G, T, D_out, N, D_in)
-    jacobian = jacobian.view(G, T, jacobian.shape[1], total_nodes, jacobian.shape[-1])
-    # For clarity, call this tensor pg (partial gradients)
-    pg = jacobian  # Shape: (G, T, D_out, N, D_in)
-    
-    # --- Flatten Targets for Per-Target Operations ---
-    # Now, combine the graph and target dimensions: shape becomes (M, D_out, N, D_in)
-    pg_flat = pg.view(G * T, pg.shape[2], pg.shape[3], pg.shape[4])
-    
-    # For per-target denominators, we assume targets are ordered so that the i-th target belongs to graph i//T.
-    # Alternatively, if Data.targets is provided (shape (M,)), it should contain the graph id (0-indexed) for each target.
-    # Here we compute the graph index per target from the ordering.
-    graph_idx = torch.arange(M, device=Data.x.device) // T  # Shape: (M,)
-    
-    if option == 'forb':
-        # --- 'forb' Option ---
-        # Assume Data.sources is of shape (M, L): each target has L source indices (local to its graph).
-        src = Data.sources  # Shape: (M, L)
-        M_val, L = src.shape
-        
-        # Gather from pg_flat along the node dimension (dim=2):
-        # Expand src to shape (M, D_out, L, D_in) so we can gather along dim=2.
-        src_expanded = src.unsqueeze(1).unsqueeze(-1).expand(M_val, pg_flat.shape[1], L, pg_flat.shape[3])
-        pg_selected = torch.gather(pg_flat, 2, src_expanded)  # Shape: (M, D_out, L, D_in)
-        
-        # Numerator for each target: for each source, compute L2 norm over (D_out, D_in), then sum over sources.
-        numerator = torch.norm(pg_selected, p=2, dim=(1, 3)).sum(dim=1)  # Shape: (M,)
-        
-        # Denominator: for each graph, compute a representative norm.
-        # Here we use the first target of each graph (pg[:, 0, ...]) as representative.
-        pg_rep = pg[:, 0, :, :, :]  # Shape: (G, D_out, N, D_in)
-        # Compute the L2 norm over dimensions D_out and D_in for each node, then sum over nodes.
-        norm_pg = torch.norm(pg_rep, p=2, dim=(1, 3))  # Shape: (G, N)
-        denom_graph = norm_pg.sum(dim=1) + 1e-6          # Shape: (G,)
-        # Assign the denominator for each target based on its graph.
-        denominator = denom_graph[graph_idx]             # Shape: (M,)
-        
-        energies = numerator / denominator               # Shape: (M,)
-        
-    else:
-        # --- Non-'forb' Option ---
-        # Assume Data.sources is of shape (M,) or (M,1); ensure it is (M,)
-        src = Data.sources
-        if src.ndim == 2 and src.shape[1] == 1:
-            src = src.squeeze(1)  # Now shape: (M,)
-        
-        # For each target, select the partial gradients along the node dimension.
-        batch_idx = torch.arange(pg_flat.shape[0], device=Data.x.device)
-        pg_selected = pg_flat[batch_idx, :, src, :]  # Shape: (M, D_out, D_in)
-        
-        # Compute the SVD for each target matrix (batched SVD).
-        sv = torch.linalg.svdvals(pg_selected)  # Shape: (M, min(D_out, D_in))
-        # Numerator: take the second singular value (index 1) for each target.
-        numerator = sv[:, 1]  # Shape: (M,)
-        
-        # Denominator: compute per graph using a representative target.
-        pg_rep = pg[:, 0, :, :, :]  # Shape: (G, D_out, N, D_in)
-        # To compute SVD per node in each graph, transpose pg_rep to shape (G, N, D_out, D_in)
-        pg_rep_trans = pg_rep.transpose(1, 2)  # Shape: (G, N, D_out, D_in)
-        # Batched SVD over (G, N) matrices.
-        sv_all = torch.linalg.svdvals(pg_rep_trans)  # Shape: (G, N, min(D_out, D_in))
-        # For each graph, sum the first singular values over nodes.
-        denom_graph = sv_all[:, :, 0].sum(dim=1) + 1e-6  # Shape: (G,)
-        denominator = denom_graph[graph_idx]               # Shape: (M,)
-        
-        energies = numerator / denominator  # Shape: (M,)
-    
-    total_energy = energies.sum()
-    return total_energy
->>>>>>> add_batched

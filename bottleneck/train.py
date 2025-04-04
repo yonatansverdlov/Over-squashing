@@ -78,23 +78,7 @@ def main():
     energy_results = {} 
     # Iterate over depth range
     for current_depth in range(min_radius, max_radius):
-<<<<<<< HEAD
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
-=======
-        if task in ['Ring','CliquePath','CrossRing','Tree','Path','KPaths']:
-             num_layers = current_depth  
-        if task in ['TwoCycles']:  
-             num_layers = 2*current_depth + 1 
-        if task in ['KPaths']:  
-             num_layers = current_depth + 1 
-        if task in 'one_radius':
-            num_layers = 2
-            n = 40
-        if task in 'two_radius':
-            num_layers = 3
-            n = 20
-        args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task,num_layers=num_layers,n = n)
->>>>>>> add_batched
         metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
 
         for repeat_idx in range(repeats):
@@ -110,13 +94,7 @@ def main():
     # Display final accuracy and energy results
     print("\nFinal Accuracy and Energy Results for All Radii:")
     for radius, (mean_acc, std_acc) in accuracy_results.items():
-<<<<<<< HEAD
-        energy = energy_results[radius]
         print(f"GNN: {model_type} |Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% |")
-=======
-        forbenius_energy, singular_energy = energy_results[radius]
-        print(f"GNN: {model_type} |Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% | Forbenius OS Energy: {forbenius_energy:.4f}|Singular OS Energy: {singular_energy:.8f}")
->>>>>>> add_batched
 
 if __name__ == "__main__":
     main()

@@ -35,11 +35,7 @@ class GraphModel(nn.Module):
         self.need_edge_features = self.task_type in {'MUTAG','PTC',}
         self.need_encode_value = self.task_type in {'Tree'}
         # Embedding initialization          
-<<<<<<< HEAD
         self.embed_label = nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
-=======
-        self.embed_label = nn.Linear(self.in_dim, self.h_dim, dtype=dtype,bias=False)
->>>>>>> add_batched
         self.embed_value = (
             nn.Linear(args.in_dim, self.h_dim, dtype=dtype)
             if self.need_encode_value else None
@@ -84,18 +80,11 @@ class GraphModel(nn.Module):
         Initialize model parameters using Xavier (Glorot) uniform initialization.
         Ensures stable gradient flow at the start of training.
         """
-<<<<<<< HEAD
         nn.init.normal_(self.embed_label.weight,mean=0.0,std=1.0)
         if not self.global_task:
             nn.init.xavier_uniform_(self.out_layer.weight)
         if self.need_edge_features:
             nn.init.xavier_uniform_(self.embed_edge.weight)
-=======
-        nn.init.xavier_uniform_(self.out_layer.weight)
-        nn.init.normal_(self.embed_label.weight)
-        if self.need_encode_value:
-            nn.init.normal_(self.embed_value.weight)
->>>>>>> add_batched
             
     def forward(self, data: Data):
         """
@@ -128,13 +117,7 @@ class GraphModel(nn.Module):
 
         # Node feature embedding
         if self.need_encode_value:
-<<<<<<< HEAD
             x = self.embed_label(x[:, 0]) + self.embed_value(x[:, 1])
-=======
-            x_id = x[:,:self.in_dim]
-            x_label = x[:,self.in_dim:]
-            x = self.embed_label(x_id) + self.embed_value(x_label)
->>>>>>> add_batched
         else:
             x = self.embed_label(x)
 
