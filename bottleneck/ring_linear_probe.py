@@ -1,8 +1,9 @@
-"""Probe linear decodability along S -> T for the radius-18 Ring task.
+"""Probe linear decodability along both S -> T paths for any Ring radius R.
 
 Run from bottleneck/:
     python ring_linear_probe.py --radius 18 --model-type SW
     python ring_linear_probe.py --radius 18 --model-type SW --checkpoint /path/to/model.ckpt
+    python ring_linear_probe.py --radius 24 --model-type GIN
 
 The generator has only five class prototypes. Accuracy measures in-sample
 decodability, NOT generalization to unseen graphs.
