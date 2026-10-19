@@ -295,9 +295,9 @@ def main():
                   f"(all positions reach {cli.failure_threshold:.0%})")
         else:
             print(f"{path}: FIRST PROBE FAILURE at distance "
-                  f"{result[\x27first_failed_distance\x27]}, "
-                  f"node {result[\x27first_failed_node\x27]}; "
-                  f"all failed distances: {result[\x27failed_distances\x27]}")
+                  f"{result['first_failed_distance']}, "
+                  f"node {result['first_failed_node']}; "
+                  f"all failed distances: {result['failed_distances']}")
     print(f"Saved results to {output.resolve()}")
     print("NOTE: Probe failure means failed linear decoding with this optimizer; it "
           "does not prove that the information has vanished. This is in-sample "
