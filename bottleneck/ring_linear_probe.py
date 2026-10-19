@@ -10,6 +10,7 @@ decodability, NOT generalization to unseen graphs.
 import argparse
 import csv
 import itertools
+import json
 from pathlib import Path
 
 import torch
@@ -196,10 +197,14 @@ def main():
     parser.add_argument("--gnn-epochs", type=int, default=None)
     parser.add_argument("--probe-epochs", type=int, default=2000)
     parser.add_argument("--probe-lr", type=float, default=0.05)
+    parser.add_argument("--failure-threshold", type=float, default=1.0,
+                        help="Probe accuracy below this threshold counts as failure")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     parser.add_argument("--output-dir", type=Path, default=None)
     cli = parser.parse_args()
+    if not (0.0 < cli.failure_threshold <= 1.0):
+        parser.error("--failure-threshold must be in (0, 1]")
     if cli.radius < 1 or cli.probe_epochs < 1 or (
         cli.gnn_epochs is not None and cli.gnn_epochs < 1
     ):
@@ -242,11 +247,21 @@ def main():
     embeddings, labels = extract_embeddings(model, batch, examples, cli.radius)
 
     rows = []
+    failure_summary = {}
     for path, nodes in ring_paths(cli.radius).items():
         accuracy, margins, min_distances, relative = fit_probes(
             embeddings[:, nodes, :].clone(), labels, args.out_dim,
             epochs=cli.probe_epochs, lr=cli.probe_lr
         )
+        failed = [d for d, value in enumerate(accuracy)
+                  if value + 1e-6 < cli.failure_threshold]
+        first = failed[0] if failed else None
+        failure_summary[path] = {
+            "first_failed_distance": first,
+            "first_failed_node": (nodes[first] if first is not None else None),
+            "failed_distances": failed,
+            "probe_accuracy_at_T": accuracy[-1],
+        }
         for distance, node_id in enumerate(nodes):
             rows.append({
                 "path": path, "node_id": node_id,
@@ -254,6 +269,7 @@ def main():
                 "minimum_margin": margins[distance],
                 "min_pairwise_distance": min_distances[distance],
                 "relative_min_pairwise_distance": relative[distance],
+                "probe_failed": accuracy[distance] + 1e-6 < cli.failure_threshold,
             })
             print(f"{path:17s} d={distance:2d} node={node_id:2d} "
                   f"probe accuracy={accuracy[distance]:.1%} "
@@ -263,9 +279,29 @@ def main():
         writer = csv.DictWriter(file, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    summary = {
+        "task": "Ring", "radius": cli.radius, "gnn_type": cli.model_type,
+        "source_node": 0, "target_node": cli.radius,
+        "original_GNN_accuracy_at_T": target_accuracy,
+        "failure_threshold": cli.failure_threshold,
+        "paths": failure_summary,
+    }
+    with (output / "failure_summary.json").open("w") as file:
+        json.dump(summary, file, indent=2)
     save_plots(rows, output)
+    for path, result in failure_summary.items():
+        if result["first_failed_distance"] is None:
+            print(f"{path}: no linear-probe failures along S -> T "
+                  f"(all positions reach {cli.failure_threshold:.0%})")
+        else:
+            print(f"{path}: FIRST PROBE FAILURE at distance "
+                  f"{result[\x27first_failed_distance\x27]}, "
+                  f"node {result[\x27first_failed_node\x27]}; "
+                  f"all failed distances: {result[\x27failed_distances\x27]}")
     print(f"Saved results to {output.resolve()}")
-    print("NOTE: This is in-sample decodability of five fixed graphs, not generalization.")
+    print("NOTE: Probe failure means failed linear decoding with this optimizer; it "
+          "does not prove that the information has vanished. This is in-sample "
+          "decodability of five fixed graphs, not generalization.")
 
 
 if __name__ == "__main__":
