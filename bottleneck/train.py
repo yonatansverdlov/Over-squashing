@@ -100,7 +100,7 @@ def main():
     # Display final accuracy and energy results
     print("\nFinal Accuracy and Energy Results for All Radii:")
     for radius, (mean_acc, std_acc) in accuracy_results.items():
-        print(f"GNN: {model_type} |Task: {task} | Radius: {radius} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% |")
+        print(f"GNN: {model_type} | Task: {task} | Radius: {radius} | Width: {args.dim} | Accuracy: {mean_acc:.2f}% ± {std_acc:.2f}% |")
 
 if __name__ == "__main__":
     main()
