@@ -19,6 +19,7 @@ def parse_arguments() -> EasyDict:
     parser.add_argument('--max_radius', type=int, default=3, help='Maximum radius value for model depth.')
     parser.add_argument('--repeat', type=int, default=1, help='Number of training repetitions.')
     parser.add_argument('--model_type', type=str, default='SW', help='Model type for training.')
+    parser.add_argument('--dim', type=int, default=None, help='Override the hidden dimension from the YAML configuration.')
     
     return EasyDict(vars(parser.parse_args()))  # Convert argparse.Namespace to EasyDict
 
@@ -74,11 +75,16 @@ def main():
     task, min_radius, max_radius, repeats, model_type = (
         args.task_type, args.min_radius, args.max_radius, args.repeat, args.model_type
     )
+    cli_dim = args.dim
     accuracy_results = {}
     energy_results = {} 
     # Iterate over depth range
     for current_depth in range(min_radius, max_radius):
         args, task_specific = get_args(depth=current_depth, gnn_type=model_type, task_type=task)
+        if cli_dim is not None:
+            args.dim = cli_dim
+            task_specific = dict(task_specific)
+            task_specific['dim'] = cli_dim  # Keep checkpoints separate for each width.
         metric_callback = MetricAggregationCallback(eval_every=args.eval_every)
 
         for repeat_idx in range(repeats):
